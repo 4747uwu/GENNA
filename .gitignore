@@ -70,3 +70,7 @@ genna_complete.tar.gz
 Thumbs.db
 venv/
 .venv/
+
+# Test/packaging scratch dirs
+.sdisttest/
+.sdistvenv/
