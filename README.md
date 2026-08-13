@@ -117,6 +117,39 @@ o.versions[0].bytes()    # the original, byte-for-byte
 len(o.versions)          # 3
 ```
 
+### Curating a dataset
+
+`Engine` is the byte-level layer. For datasets you work in records, not
+offsets — [`examples/curate_a_dataset.py`](examples/curate_a_dataset.py) is
+runnable and prints exactly this:
+
+```python
+ds = genna.Dataset.from_jsonl("train.jsonl")   # 5,500 records, 0.43 MB
+
+ds.filter_length(min_bytes=60)                 # removed 120
+ds.drop_containing("LOREM IPSUM")              # removed  80
+ds.dedup()                                     # removed 300
+
+ds.engine.save("train.genna")
+```
+
+```
+store: 0.07 MB on disk, holding ALL 501 versions
+  (the raw file alone was 0.43 MB, and that is one version)
+```
+
+Every intermediate state is addressable, and reopening gets the exact bytes:
+
+```python
+ds2 = genna.Dataset.open("train.genna")
+ds2.version_bytes(0) == open("train.jsonl", "rb").read()   # True
+ds2.rollback(step.version_before)                          # undo one step
+```
+
+Each removed record is its own version, which is what makes rollback
+fine-grained — three curation steps became 501 versions. Roll back to a
+`Step` boundary rather than counting versions yourself.
+
 Optional extras, none of them needed for the above:
 
 ```bash
