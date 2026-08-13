@@ -54,7 +54,8 @@ echo
 
 fails=0; skipped=0; ran=0
 for t in tests/test_core.py tests/test_threads.py tests/test_table.py \
-         tests/test_query.py tests/test_lazy.py tests/test_sketch.py tests/test_semantic.py; do
+         tests/test_query.py tests/test_lazy.py tests/test_sketch.py \
+         tests/test_semantic.py tests/test_demo.py; do
   echo "=================================================================="
   echo "### $t"
   echo "=================================================================="

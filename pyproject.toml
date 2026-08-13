@@ -32,6 +32,9 @@ table = ["pyarrow>=12", "numpy>=1.21"]
 semantic = ["onnxruntime>=1.15", "numpy>=1.21", "tokenizers>=0.15", "huggingface-hub>=0.20"]
 dev = ["pytest>=7"]
 
+[project.scripts]
+genna-demo = "genna.demo:main"
+
 [project.urls]
 Homepage = "https://github.com/genna-engine/genna"
 Source = "https://github.com/genna-engine/genna"

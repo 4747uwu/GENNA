@@ -217,6 +217,28 @@ class Dataset:
     def engine(self) -> Engine:
         return self._engine
 
+    def touched_versions(self, index: int, limit: int | None = None) -> list[int]:
+        """Which versions changed record `index`?
+
+        Answered from the version tree's structure, without materializing any
+        version -- which is what makes it usable on a long history at all.
+
+        The result is a SUPERSET of the true answer: it never misses a version
+        that really changed the record, but it can include a few that did not,
+        because a record's byte range is compared against shared subtrees
+        rather than by reading the bytes. Treat it as a filter and confirm the
+        candidates by reading just those versions.
+
+        Note that `index` is a position in the CURRENT version. Records shift
+        as earlier ones are removed, so the same index means a different
+        record after a curation step.
+        """
+        if not 0 <= index < len(self._offsets):
+            raise IndexError("record %d out of range (%d records)"
+                             % (index, len(self._offsets)))
+        return self._obj.range_history(self._offsets[index],
+                                       self._lengths[index], limit=limit)
+
     def _begin(self) -> tuple[int, int]:
         return len(self._obj.versions) - 1, len(self)
 

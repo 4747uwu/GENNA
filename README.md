@@ -94,6 +94,28 @@ pip install genna
 No compiler, no build step, no dependencies — the wheel ships the engine as a
 prebuilt shared library, and `pip list` shows exactly one package.
 
+Then see the whole thing work, on data it generates itself, in about ten
+seconds:
+
+```bash
+genna-demo
+```
+
+It curates a messy dataset, saves every intermediate version, reads the
+original back byte-for-byte, answers "which versions touched this record?",
+and rolls a step back — printing measured numbers from *your* machine, not
+quoted ones:
+
+```
+  Genna store           0.30 MB   1841 versions, saved in 309 ms
+  one raw copy          1.93 MB   1 version
+  4 files by hand       7.52 MB   raw + one copy per step, which is
+                                  what you would otherwise keep
+
+  -> 25.0x smaller than keeping the 4 files, and it holds
+     1841 versions rather than 4.
+```
+
 ```python
 import genna
 

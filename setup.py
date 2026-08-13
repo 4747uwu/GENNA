@@ -109,24 +109,55 @@ def _compiler() -> str:
     )
 
 
-def _has_header(cc: str, header: str, lib_flag: str, env) -> bool:
-    """Can we actually compile AND link against this library?
+def _probe_link(cc: str, header: str, flags: list, env) -> bool:
+    """Can we build a SHARED library against this, with these exact flags?
 
-    Checking for the header alone is not enough -- plenty of systems ship
-    zlib.h with no linkable libz -- and a link error at this point is much
-    cheaper than one two minutes into the real build.
+    Two things are being checked at once, and the second is the one that
+    matters. Checking for the header alone is not enough -- plenty of systems
+    ship zlib.h with no linkable libz. And building a shared object rather
+    than an executable is what catches a static archive that was compiled
+    without -fPIC, which links fine into a program and fails only here.
     """
     with tempfile.TemporaryDirectory() as td:
         c = Path(td) / "probe.c"
-        c.write_text("#include <%s>\nint main(void){return 0;}\n" % header)
-        out = Path(td) / ("probe.exe" if sys.platform == "win32" else "probe")
+        c.write_text("#include <%s>\nint probe(void){return 0;}\n" % header)
+        out = Path(td) / ("probe.dll" if sys.platform == "win32" else "probe.so")
+        cmd = [cc, "-shared", str(c), "-o", str(out)]
+        if sys.platform != "win32":
+            cmd.insert(1, "-fPIC")
+        cmd += flags
         try:
-            r = subprocess.run([cc, str(c), "-o", str(out), lib_flag],
-                               capture_output=True, text=True, timeout=90,
-                               env=env)
+            r = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=120, env=env)
         except Exception:
             return False
-        return r.returncode == 0
+        return r.returncode == 0 and out.exists()
+
+
+def _compression_flags(cc: str, env) -> list:
+    """Pick link flags for zlib/zstd, preferring a SELF-CONTAINED library.
+
+    Linking these dynamically produces a genna.dll that depends on
+    libzstd.dll and zlib1.dll from whatever toolchain built it. That loads
+    fine from an MSYS2 shell and fails everywhere else with
+
+        Could not find module 'genna.dll' (or one of its dependencies)
+
+    which names the wrong file and sends people hunting. The same applies to
+    a .so against a homebrew libzstd. So try static first and only fall back
+    to dynamic, where CI's auditwheel/delvewheel step vendors the libraries
+    into the wheel instead.
+    """
+    if os.environ.get("GENNA_NO_COMPRESSION") == "1":
+        return []
+    found = []
+    for header, lib in (("zstd.h", "zstd"), ("zlib.h", "z")):
+        static = ["-Wl,-Bstatic", "-l" + lib, "-Wl,-Bdynamic"]
+        if _probe_link(cc, header, static, env):
+            found.append((header, lib, static, "static"))
+        elif _probe_link(cc, header, ["-l" + lib], env):
+            found.append((header, lib, ["-l" + lib], "dynamic"))
+    return found
 
 
 def build_native(dest_dir: Path) -> Path:
@@ -162,12 +193,10 @@ def build_native(dest_dir: Path) -> Path:
     # rather than assume it, so a machine without the dev packages still gets
     # a working -- just larger -- store.
     libs = []
-    if _has_header(cc, "zstd.h", "-lzstd", env):
-        cmd.append("-DGN_HAVE_ZSTD")
-        libs.append("-lzstd")
-    if _has_header(cc, "zlib.h", "-lz", env):
-        cmd.append("-DGN_HAVE_ZLIB")
-        libs.append("-lz")
+    for header, lib, flags, how in _compression_flags(cc, env):
+        cmd.append("-DGN_HAVE_ZSTD" if lib == "zstd" else "-DGN_HAVE_ZLIB")
+        libs += flags
+        print("genna: %s linked %s" % (lib, how), flush=True)
     if not libs:
         print("genna: no zlib/zstd found - stores will be UNCOMPRESSED "
               "(functional, but several times larger)", flush=True)
@@ -218,8 +247,27 @@ def build_native(dest_dir: Path) -> Path:
             f"Set GENNA_CC to a matching compiler and reinstall."
         )
 
+    # Does it actually LOAD? A library that links but drags in libzstd.dll
+    # from the build toolchain installs perfectly and then fails at `import
+    # genna` for anyone whose PATH differs from the builder's -- with an
+    # error that names genna.dll rather than the dependency it could not
+    # find. Catch it here, where the message can say what is wrong.
+    try:
+        import ctypes
+        ctypes.CDLL(str(out))
+    except OSError as e:
+        raise SystemExit(
+            "the library was built but cannot be loaded:\n  %s\n\n"
+            "This usually means it depends on a shared library that is only "
+            "on the build machine's PATH (libzstd/zlib). setup.py links those "
+            "statically when it can; if you reach this, re-run with\n"
+            "  GENNA_NO_COMPRESSION=1 pip install .\n"
+            "to build without them." % e
+        )
+
     print(f"  -> {out} ({out.stat().st_size} bytes, "
-          f"{'arch verified' if arch_ok else 'arch unverified'})", flush=True)
+          f"{'arch verified' if arch_ok else 'arch unverified'}, loads OK)",
+          flush=True)
     return out
 
 
