@@ -1,0 +1,30 @@
+# Line endings are a correctness issue here, not a style one.
+#
+# This repo is developed on Windows. A shell script committed with CRLF fails
+# on Linux with `bad interpreter: /usr/bin/env bash^M`, and a Makefile with
+# CRLF fails with equally unhelpful errors -- which would break the Linux CI
+# on its first run and look like a platform bug rather than a checkout bug.
+#
+# Normalise everything textual to LF in the repository. Working copies on
+# Windows are unaffected for editing purposes.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.py    text eol=lf
+*.c     text eol=lf
+*.h     text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.in    text eol=lf
+*.jsonl text eol=lf
+Makefile text eol=lf
+LICENSE  text eol=lf
+
+# Never touched.
+*.png  binary
+*.jpg  binary
+*.ply  binary
+*.tar  binary
+*.gz   binary
+*.gn   binary

@@ -1,0 +1,40 @@
+   workdir /d/website/devops/GENNA/.oocore-work (7365 MB free, need ~1408 MB)
+== build ==
+   ok
+
+=== out-of-core: mapped vs heap-resident store ===
+   payload: 192 MB of binary data
+
+  ok    mappable store written (2258 ms)
+  ok    compressed store written (379155 ms)
+   on disk: mappable 770.0 MB, compressed 234.3 MB (compression forfeited: 3.29x bigger)
+  ok    compressed store opens
+  ok    compressed store is NOT mapped
+  ok    compressed store reads correctly
+  ok    mappable store opens
+  ok    mapped store reports mapped, 768.0 MB of chunk data borrowed
+  ok    1 MB read through the mapping is byte-identical to the heap store
+  ok    40 scattered 64 KB reads all byte-exact through the map
+  ok    a mapped store is still writable
+  ok    the edit reads back from the mapped store
+  ok    untouched data is still exact after editing a mapped store
+
+   resident after open:
+     compressed store :    777.3 MB   (open 4066 ms)
+     mapped store     :      9.8 MB   (open 14 ms)
+     payload          :    192.0 MB
+  ok    mapped open is at least 2x lighter (9.8 MB vs 777.3 MB, 79.5x)
+  ok    mapped open is faster (14 ms vs 4066 ms) - no decompress, no copy
+  ok    gn_verify_chunks accepts an intact mapped store
+  ok    a compressed store reports no separate bulk (checked at open)
+  ok    gn_verify_chunks catches a single flipped bit in the bulk
+  ok    a mapped store with corrupt bulk still OPENS (the documented gap)
+
+OUT-OF-CORE: ALL PASS (0 failures)
+
+== aggregates vs out-of-core: same store, one fresh process each ==
+     no monoid  :     10.0 MB   (open 11 ms)
+     MAX monoid :    777.1 MB   (open 367 ms)
+  ok    attaching a monoid COSTS the mapping win: 77.9x more resident, 33.3636x slower open
+
+OUT-OF-CORE VERDICT: PASS

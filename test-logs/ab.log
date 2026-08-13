@@ -1,0 +1,39 @@
+############ A/B: original tree vs persistence tree ############
+
+== build original ==
+   ok
+== build current ==
+   ok
+
+=================== gitcmp ===================
+  *** DIFFERENCES ***
+2c2
+< Genna after 100 commits: +0.036 MB tree nodes for full version history
+---
+> Genna after 100 commits: +0.083 MB tree nodes for full version history
+4c4
+<   total Genna footprint: 4.04 MB (store 4.01 + history 0.036)
+---
+>   total Genna footprint: 4.09 MB (store 4.01 + history 0.083)
+  --- timing lines (informational, vary per run) ---
+    orig:   time: 0.8 ms (0.0079 ms/commit)   ||   new:   time: 1.0 ms (0.0101 ms/commit)
+    orig:   read OLDEST version (full 8.2 MB): 14.007 ms each   ||   new:   read OLDEST version (full 8.2 MB): 13.577 ms each
+    orig:   read a 20KB slice of oldest version: 0.0210 ms each   ||   new:   read a 20KB slice of oldest version: 0.0153 ms each
+
+=================== realbench ===================
+  *** DIFFERENCES ***
+4c4
+<   bytes written (new tree nodes): 0.036 MB
+---
+>   bytes written (new tree nodes): 0.084 MB
+  --- timing lines (informational, vary per run) ---
+    orig:   time: 1.2 ms   ||   new:   time: 0.9 ms
+
+=================== rsynccmp ===================
+  *** DIFFERENCES ***
+5c5
+<   rsync sent:      335,439 bytes (measured, real rsync 3.2.7)
+---
+>   rsync sent:      335,439 bytes (documented, real rsync 3.2.7)
+  --- timing lines (informational, vary per run) ---
+

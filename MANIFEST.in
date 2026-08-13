@@ -1,0 +1,23 @@
+# The sdist must be able to build the engine on a machine that has only the
+# sdist. The C sources live outside the Python package directory, so they have
+# to be named explicitly -- without this, `pip install genna` from source
+# fails with "Genna C sources not found" after the download has already
+# succeeded, which is a confusing way to learn the package is incomplete.
+include LICENSE
+include README.md
+include MANIFEST.in
+recursive-include src *.c
+recursive-include include *.h
+include python/tests/smoke_wheel.py
+
+# Docs a user may want next to the code they just installed.
+include PERSISTENCE.md
+include MERGE.md
+include AGGREGATES.md
+
+# Not shipped: corpora (hundreds of MB), test logs, working directories.
+prune corpora
+prune test-logs
+prune benchmarks
+global-exclude *.pyc
+global-exclude __pycache__

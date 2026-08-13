@@ -1,0 +1,30 @@
+src/genna_persist.c:605:15: warning: unused variable 'nocomp' [-Wunused-variable]
+  605 |     const int nocomp   = mappable || (save_flags & GN_SAVE_RAW) != 0;
+      |               ^~~~~~
+1 warning generated.
+  seed 11   clean | 100 corrupted stores: 97 rejected, 3 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 83 rejected, 17 loaded and read through the mapping without crashing
+  seed 22   clean | 100 corrupted stores: 92 rejected, 8 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 73 rejected, 27 loaded and read through the mapping without crashing
+  seed 33   clean | 100 corrupted stores: 93 rejected, 7 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 80 rejected, 20 loaded and read through the mapping without crashing
+  seed 44   clean | 100 corrupted stores: 95 rejected, 5 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 91 rejected, 9 loaded and read through the mapping without crashing
+  seed 55   clean | 100 corrupted stores: 97 rejected, 3 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 72 rejected, 28 loaded and read through the mapping without crashing
+  seed 66   clean | 100 corrupted stores: 94 rejected, 6 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 85 rejected, 15 loaded and read through the mapping without crashing
+  seed 77   clean | 100 corrupted stores: 94 rejected, 6 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 80 rejected, 20 loaded and read through the mapping without crashing
+  seed 88   clean | 100 corrupted stores: 98 rejected, 2 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 84 rejected, 16 loaded and read through the mapping without crashing
+  seed 99   clean | 100 corrupted stores: 92 rejected, 8 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 82 rejected, 18 loaded and read through the mapping without crashing
+  seed 101  clean | 100 corrupted stores: 94 rejected, 6 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 86 rejected, 14 loaded and read through the mapping without crashing
+  seed 202  clean | 100 corrupted stores: 91 rejected, 9 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 78 rejected, 22 loaded and read through the mapping without crashing
+  seed 303  clean | 100 corrupted stores: 97 rejected, 3 loaded and read without crashing
+                  | 100 corrupted MAPPABLE stores: 77 rejected, 23 loaded and read through the mapping without crashing
+
+corrupt-store campaign: 0 seed(s) with problems

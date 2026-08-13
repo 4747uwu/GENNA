@@ -1,0 +1,37 @@
+== build (with -DGN_NODE_AGG) ==
+   ok
+
+=== aggregates in the node ===
+   node size: 64 bytes   (built WITH -DGN_NODE_AGG)
+
+  ok    8 MB ingested with a MAX monoid attached
+  ok    200 random MAX ranges match a brute-force scan exactly
+  ok    the planted 0xFF is found by a 1-byte range
+  ok    whole-object MAX is the planted 0xFF
+
+   MAX over 4 KB      : 0.0021 ms
+   MAX over 8 MB     : 0.0000 ms
+   (for scale) read 4 MB: 17.0065 ms
+
+  ok    a whole-object aggregate costs about what a 4 KB one does (0.0000 vs 0.0021 ms) - the subtree annotation is doing the work
+  ok    100 random MIN ranges match brute force
+  ok    100 random SUM ranges match brute force
+  ok    whole-object SUM matches brute force exactly
+  ok    before the edit: whole-object aggregate == sum of the real tokens
+  ok    after an edit, the whole-object aggregate still equals the sum of the real tokens (tree 36028778761154874, tokens 36028778761154874, diff 0)
+  ok    version 0's aggregate is unchanged by the edit (structural sharing)
+  ok    store saved for the aggregate round trip
+  ok    store reopens
+  ok    after gn_open, the whole-object aggregate equals the sum of the real tokens (tree 36028778761154874, tokens 36028778761154874)
+  ok    and it is the same value the store had before saving (36028778761154874 vs 36028778761154874)
+  ok    a partial range over a reopened store is non-zero (281474968316021)
+
+AGGREGATES: ALL PASS (0 failures)
+
+== A/B: the same engine built WITHOUT -DGN_NODE_AGG ==
+=== aggregates in the node ===
+   node size: 56 bytes   (built WITHOUT -DGN_NODE_AGG)
+
+  n/a   monoid unavailable: built without -DGN_NODE_AGG
+
+AGGREGATES VERDICT: PASS

@@ -1,0 +1,27 @@
+== build (with allocator wrapping) ==
+   ok
+
+=== leak accounting (linker --wrap over malloc/free/calloc/realloc) ===
+  [leak] engine new/free        live 0 bytes in 0 blocks | lifetime 11 blocks, peak 2.13 MB
+  ok    engine new/free: no bytes outstanding (0 blocks)
+  [leak] dict train + create    live 0 bytes in 0 blocks | lifetime 38 blocks, peak 98.91 MB
+  ok    dict train + create: no bytes outstanding (0 blocks)
+  [leak] 500 splices + history  live 0 bytes in 0 blocks | lifetime 1540 blocks, peak 98.91 MB
+  ok    500 splices + history: no bytes outstanding (0 blocks)
+  [leak] trim history           live 0 bytes in 0 blocks | lifetime 533 blocks, peak 98.91 MB
+  ok    trim history: no bytes outstanding (0 blocks)
+  ok    gn_delete: object held 363 tree nodes
+  ok    gn_delete releases the whole version history: 0 nodes live after delete vs 0 before create
+  [leak] gn_delete (drops an object mid-session) live 0 bytes in 0 blocks | lifetime 171 blocks, peak 98.91 MB
+  ok    gn_delete (drops an object mid-session): no bytes outstanding (0 blocks)
+  [leak] search                 live 0 bytes in 0 blocks | lifetime 46 blocks, peak 98.91 MB
+  ok    search: no bytes outstanding (0 blocks)
+  [leak] save + open + edit + close live 0 bytes in 0 blocks | lifetime 355 blocks, peak 98.91 MB
+  ok    save + open + edit + close: no bytes outstanding (0 blocks)
+  [leak] open + WAL replay      live 0 bytes in 0 blocks | lifetime 375 blocks, peak 3.21 MB
+  ok    open + WAL replay: no bytes outstanding (0 blocks)
+  [leak] failed open of a corrupt store live 0 bytes in 0 blocks | lifetime 1 blocks, peak 0.00 MB
+  ok    failed open of a corrupt store: no bytes outstanding (0 blocks)
+  ok    treap: 0 nodes live at exit
+
+LEAK CHECK: CLEAN (0 failures)

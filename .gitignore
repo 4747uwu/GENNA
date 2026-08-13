@@ -1,0 +1,72 @@
+# --- build output -----------------------------------------------------
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+build/
+dist/
+wheelhouse/
+*.egg-info/
+__pycache__/
+*.py[cod]
+
+# Compiled test and benchmark binaries (Makefile targets, no extension on
+# unix so they have to be named).
+/genna-curate
+/embedtest
+/simdtest
+/comptest
+/realbench
+/gitcmp
+/rsynccmp
+/vbench
+/test_genna
+/edge
+/persist_test
+/crash_test
+/fuzz_test
+/merge_test
+/agg_test
+/oocore_test
+
+# --- test/bench working directories -----------------------------------
+.oocore-work/
+.agg-work/
+.merge-work/
+.delta-work/
+.cf-work/
+.pkgtest/
+.pkgclean/
+.pkgdist/
+
+# Stores and references left behind by a test that was interrupted.
+*.gn
+*.gn.wal
+*.gn.tmp
+*.gn.lock
+gn_ref.bin
+gn_witness.txt
+
+# --- large inputs -----------------------------------------------------
+# 74 MB of Stanford scans, WikiText-2 and a Redis checkout. Fetched by the
+# benchmark scripts; a clone should not carry them.
+corpora/
+
+# NOTE: test-logs/ is deliberately NOT ignored. TEST_REPORT.md quotes those
+# runs, and for a project whose claim is "measure, don't claim" the raw
+# output is the evidence -- 264 KB is a cheap price for a reader being able
+# to check a number against the log that produced it.
+
+# --- local archives ---------------------------------------------------
+genna_complete.tar
+genna_complete.tar.gz
+
+# --- editor / OS ------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+venv/
+.venv/

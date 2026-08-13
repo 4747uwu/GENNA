@@ -1,0 +1,167 @@
+############ GENNA SUITE [asan-ubsan] ############
+CC     = clang
+CFLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined -g -O1 -std=c11 -D_GNU_SOURCE -DGN_HAVE_ZLIB -DGN_HAVE_ZSTD -Iinclude -I/mingw64/include -Wall -Wextra
+corpus = sample_ml_dataset.jsonl
+
+===== 1. test_genna (pre-existing: 11 correctness assertions + demo numbers) =====
+  (warnings building test_genna.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+=== GENNA v1 test run ===
+
+-- correctness --
+  ok    C+R: exact round trip
+  ok    R: byte-range read mid-file
+  ok    U: insert mid-file
+  ok    U: delete restores original
+  ok    U: replace at file start
+  ok    versions: v0 readable after 3 edits
+  ok    versions: history length = 4
+  ok    search: 'engine' found 3x across objects
+  ok    search: absent word -> instant corpus-wide no
+  ok    search: multi-token phrase match
+  ok    dedup: identical chunk reused
+
+-- demo numbers (100MB pseudo-English) --
+  ingest: 100.0 MB in 6214 ms (16 MB/s)
+  resident tokens: 114.3 MB  (0.87x vs raw)
+  chunks: 29260 created, 0 deduped
+  search 'compression': genna 366.4 ms (748863 hits) vs memmem raw 116.7 ms (748863 hits)
+  U mid-file:  genna 0.267 ms   vs rewrite 33.3 ms   (125x)
+  U delete 10MB chapter: 0.071 ms (file untouched except seams)
+  ok    U@100MB: insert survives at seam
+  tokens scanned: 30.0 M   tokens detokenized: 0.00 M (toll paid only where bytes were requested)
+
+TEST RUN: ALL CLAIMS HELD (0 failures)
+  PASS  test_genna
+
+===== 2. edge (pre-existing: 19 boundary cases) =====
+  (warnings building edge.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+  ok   read empty object -> 0 bytes
+  ok   insert into empty object
+  ok   empty+insert reads back
+  ok   delete entire content
+  ok   emptied object reads 0
+  ok   read past end clamps
+  ok   read entirely past end -> 0
+  ok   delete beyond end clamps
+  ok   over-delete leaves prefix
+  ok   append at exact end
+  ok   append reads back
+  ok   noop edit at end
+  ok   noop edit unchanged
+  ok   insert past end rejected
+  ok   2MB insert mid-object
+  ok   huge insert seam correct
+  ok   huge insert length correct
+  ok   zero-length read -> 0
+  ok   v0 of edited object readable
+
+ALL EDGE CASES PASS (0 failures)
+  PASS  edge
+
+===== 3. fuzz (new: splice / search / gc-refcount / persistence) =====
+  (warnings building fuzz_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+  [audit] 1271 reachable nodes, 0 refcount mismatches
+=== GENNA fuzz suite (seed 20260811) ===
+
+-- splice fuzz: 600 random splices, full byte compare after each --
+  ok    600 splices, engine matched shadow byte-for-byte every time
+  ok    all 601 historical versions still read back correctly
+
+-- search fuzz: 400 needles vs brute force --
+  ok    400 needles: hit counts and offsets matched brute force (289 present, 111 absent)
+
+-- gc/refcount fuzz: edits + history trims, then audit the DAG --
+  ok    content still exact after 37 trims
+  ok    refcount audit over 12 live versions: 0 mismatches
+  ok    every node reclaimed on free: 1271 live before, 0 after (baseline 0)
+
+-- persistence fuzz: save/reopen at random points mid-stream --
+  ok    150 edits across 13 save/reopen cycles, all versions exact
+
+-- corrupt-store fuzz: 75 mutated stores, checksums REPAIRED --
+  ok    75 corrupted MAPPABLE stores: 62 rejected, 13 loaded and read through the mapping without crashing
+  ok    75 corrupted stores: 69 rejected, 6 loaded and read without crashing
+
+FUZZ: ALL PASS (0 failures)  [reproduce with: fuzz_test 20260811 600]
+  PASS  fuzz_test
+
+===== 4. persist round-trip (new: byte-exact across a process boundary) =====
+  (warnings building persist_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+-- phase 1: ingest sample_ml_dataset.jsonl (2.40 MB), 30 edits, save --
+   versions built: 31
+   reference: 31 versions, 74.5 MB of bytes
+   store: 135 chunks, 0.41 MB resident
+   saved -> C:/msys64/tmp/gn_suite_asan-ubsan/p.gn
+  ok    v0 still byte-exact in the saving process
+-- phase 2: FRESH PROCESS, open C:/msys64/tmp/gn_suite_asan-ubsan/p.gn, memcmp every version --
+  ok    object count restored (1)
+  ok    version count survived: 31 (expected 31)
+  ok    all 31 versions byte-exact after reload (74.5 MB compared)
+  ok    save->open->save byte-identical over 739810 payload bytes - structural sharing preserved
+  ok    engine still writable after reload
+  ok    post-reload edit changed length correctly (2519540 -> 2519560)
+  ok    post-reload edit lands at the right offset
+  ok    v0 STILL byte-exact after a post-reload edit
+
+PERSIST ROUND-TRIP: BYTE-EXACT (0 failures)
+  PASS  persist_test
+
+===== 5. crash recovery (new: SIGKILL mid-edit) =====
+  (warnings building crash_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+=== crash recovery: SIGKILL mid-edit ===
+  setup: ingested sample_ml_dataset.jsonl and saved the initial snapshot
+  round 0: killed after 350 ms | witnessed 50, recovered 50, replayed 25 WAL records
+  ok        no lost commits (recovered 50 >= witnessed 50)
+  ok        no corruption: 51/51 versions byte-exact vs crash-free reference (122.6 MB)
+  round 1: killed after 487 ms | witnessed 125, recovered 125, replayed 25 WAL records
+  ok        no lost commits (recovered 125 >= witnessed 125)
+  ok        no corruption: 126/126 versions byte-exact vs crash-free reference (302.8 MB)
+  round 2: killed after 624 ms | witnessed 221, recovered 222, replayed 22 WAL records
+  ok        no lost commits (recovered 222 >= witnessed 221)
+  ok        no corruption: 223/223 versions byte-exact vs crash-free reference (535.9 MB)
+
+  -- WAL forensics --
+  ok        torn tail appended: store still opens
+  ok        torn tail ignored, not misread (222 edits, same as before)
+  ok        6 edits made after recovering from a torn tail survive the next open (222 -> 228)
+  ok        store opens with no WAL at all
+  ok        without the WAL we fall back to the last checkpoint: 200 edits vs 228 with the log (the log was carrying 28)
+  ok        log missing: reopened with logging re-armed
+  ok        5 edits made after the log was rebuilt survive the next open (200 -> 205)
+  ok        stale log: reopened with logging re-armed
+  ok        4 edits after a stale log survive the next open (200 -> 204)
+
+CRASH RECOVERY: SURVIVED (0 failures)
+  PASS  crash_test
+
+############ SUITE [asan-ubsan]: 5 passed, 0 failed ############

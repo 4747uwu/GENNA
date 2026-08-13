@@ -1,0 +1,121 @@
+== build genna-curate ==
+genna_curate.c: In function 'gn_embed':
+genna_curate.c:408:5: warning: this 'while' clause does not guard... [-Wmisleading-indentation]
+  408 |     while(m>0&&t[m-1]==' ')m--; t[m]=0;
+      |     ^~~~~
+genna_curate.c:408:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'while'
+  408 |     while(m>0&&t[m-1]==' ')m--; t[m]=0;
+      |                                 ^
+genna_curate.c: In function 'op_head':
+genna_curate.c:486:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  486 |     if(n<=0) n=5; if((uint32_t)n>s->idx.n) n=s->idx.n;
+      |     ^~
+genna_curate.c:486:19: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  486 |     if(n<=0) n=5; if((uint32_t)n>s->idx.n) n=s->idx.n;
+      |                   ^~
+src/genna_persist.c: In function 'gn_save_ex':
+src/genna_persist.c:605:15: warning: unused variable 'nocomp' [-Wunused-variable]
+  605 |     const int nocomp   = mappable || (save_flags & GN_SAVE_RAW) != 0;
+      |               ^~~~~~
+   ok
+
+== session 1: curate -> save -> exit ==
+ingested sample_ml_dataset.jsonl: 24500 records, 2.40 MB
+  (in RAM — 'save <path>' to make this session survive exit)
+
+Genna structural-sharing engine active. Every curate op is a
+byte-exact versioned edit. Type 'help' for commands.
+
+curate> count
+  24500 records
+curate> dedup
+  removed 24333 exact duplicates in 65.19 ms -> v24333
+curate> filter-length 20 0
+  dropped 0 out-of-range records in 0.01 ms -> v24333
+curate> drop-contains spam
+  dropped 0 records in 0.04 ms -> v24333
+curate> replace model MODEL
+  replaced 150 occurrences in 0.52 ms -> v24483
+curate> versions
+  24484 versions (v0 = original, v24483 = current head):
+    v0: 2519678 bytes
+    v1: 2519570 bytes
+    v2: 2519464 bytes
+    v3: 2519420 bytes
+    ... 24476 intermediate versions ...
+    v24480: 17116 bytes
+    v24481: 17116 bytes
+    v24482: 17116 bytes
+    v24483: 17116 bytes
+curate> export 0 C:/msys64/tmp/gn_cur/v0.txt
+  exported v0 (2519678 bytes) -> C:/msys64/tmp/gn_cur/v0.txt
+curate> export 1 C:/msys64/tmp/gn_cur/v1.txt
+  exported v1 (2519570 bytes) -> C:/msys64/tmp/gn_cur/v1.txt
+curate> export 2 C:/msys64/tmp/gn_cur/v2.txt
+  exported v2 (2519464 bytes) -> C:/msys64/tmp/gn_cur/v2.txt
+curate> stats
+  versions:        24484 (all rollback-able)
+  current records: 167
+  current size:    16.7 KB
+  store resident:  0.41 MB (dict + chunks)
+  history written: 9189.2 KB of tree nodes for ALL edits
+  (a shard-rewrite format would rewrite whole shards per edit)
+curate> save C:/msys64/tmp/gn_cur/store.gn
+  saved 24484 versions of 'sample_ml_dataset.jsonl' -> C:/msys64/tmp/gn_cur/store.gn
+  4285.3 KB on disk for 16.7 KB of current content + all history (38 ms)
+  WAL active: further edits are logged before they are applied
+curate> quit
+
+session ended. store: C:/msys64/tmp/gn_cur/store.gn (0 edits logged this session).
+  reopen with: C:\msys64\tmp\gn_cur\genna-curate.exe --open C:/msys64/tmp/gn_cur/store.gn
+   (exit 0)
+
+== process has exited. store on disk: ==
+   /tmp/gn_cur/store.gn          4388100 bytes
+   /tmp/gn_cur/store.gn.wal           32 bytes
+
+== session 2: NEW PROCESS -> open -> rollback ==
+  opened C:/msys64/tmp/gn_cur/store.gn: 'sample_ml_dataset.jsonl', 167 records, 24484 versions (v0..v24483 all rollback-able) in 19 ms
+
+Genna structural-sharing engine active. Every curate op is a
+byte-exact versioned edit. Type 'help' for commands.
+
+curate> count
+  167 records
+curate> versions
+  24484 versions (v0 = original, v24483 = current head):
+    v0: 2519678 bytes
+    v1: 2519570 bytes
+    v2: 2519464 bytes
+    v3: 2519420 bytes
+    ... 24476 intermediate versions ...
+    v24480: 17116 bytes
+    v24481: 17116 bytes
+    v24482: 17116 bytes
+    v24483: 17116 bytes
+curate> export 0 C:/msys64/tmp/gn_cur/r_v0.txt
+  exported v0 (2519678 bytes) -> C:/msys64/tmp/gn_cur/r_v0.txt
+curate> export 1 C:/msys64/tmp/gn_cur/r_v1.txt
+  exported v1 (2519570 bytes) -> C:/msys64/tmp/gn_cur/r_v1.txt
+curate> export 2 C:/msys64/tmp/gn_cur/r_v2.txt
+  exported v2 (2519464 bytes) -> C:/msys64/tmp/gn_cur/r_v2.txt
+curate> rollback 0
+  rolled back to v0 -> new head is v24484 (history preserved)
+curate> export 24484 C:/msys64/tmp/gn_cur/r_rollback0.txt
+  exported v24484 (2519678 bytes) -> C:/msys64/tmp/gn_cur/r_rollback0.txt
+curate> count
+  24500 records
+curate> quit
+
+session ended. store: C:/msys64/tmp/gn_cur/store.gn (1 edits logged this session).
+  reopen with: C:\msys64\tmp\gn_cur\genna-curate.exe --open C:/msys64/tmp/gn_cur/store.gn
+   (exit 0)
+
+== byte-exactness: pre-save exports vs post-reload exports ==
+   ok    v0 identical across the process boundary (2519678 bytes)
+   ok    v1 identical across the process boundary (2519570 bytes)
+   ok    v2 identical across the process boundary (2519464 bytes)
+   ok    rollback to v0 after restart is byte-exact vs the original v0 (2519678 bytes)
+   ok    reloaded v0 == the original ingested dataset, byte for byte
+
+CURATE PERSISTENCE: PASS (0 failures)

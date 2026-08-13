@@ -1,0 +1,28 @@
+== build ==
+   ok
+
+############ save flags = 0 ############
+=== store growth per commit ===
+   corpus: D:/website/devops/GENNA/corpora/redis_src.txt (8.18 MB), commits: 100, save flags: 0x0
+
+   baseline store (1 version): 1772291 bytes
+
+   commit    store bytes        grew by      save ms
+        1        1771806           -485         3132
+        2        1771993            187         3122
+        3        1772440            447         3141
+       51        1777584            112         3128
+      100        1783299            834         3171
+
+   after 100 commits: 1783299 bytes
+   growth:           11008 bytes total, 110 bytes/commit
+   save cost:        3179 ms/commit (full rewrite, not incremental)
+   bytes WRITTEN:    1783299 per commit (the whole store, every time)
+   versions:         101
+
+=== same commits, WAL mode (one checkpoint, then append) ===
+   WAL grew:         4890 bytes for 100 commits (49 bytes/commit)
+   commit cost:      0.48 ms/commit (fsync per record)
+   durability:       every one of those 100 edits survives SIGKILL
+   checkpoint:       1783443 bytes, 3093 ms (amortized over 100 commits: 112 bytes/commit)
+

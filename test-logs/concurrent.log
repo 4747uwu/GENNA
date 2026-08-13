@@ -1,0 +1,42 @@
+== build ==
+   ok
+
+=== optimistic concurrency: 8 writers racing, 5 rounds ===
+  round 0: base gen 1 -> 2 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 1 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 1: base gen 2 -> 3 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 2 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 2: base gen 3 -> 4 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 3 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 3: base gen 4 -> 5 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 4 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 4: base gen 5 -> 6 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 5 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+
+  totals: 5 committed, 35 conflicted, 0 lock-timeout, 0 errors
+  ok        the store contains exactly the 5 winning edits (found 5) - no lost update, no phantom
+
+  -- with a retry loop, every writer should eventually land --
+  ok        all 8 writers landed via retry (8)
+
+CONCURRENCY: ALL PASS (0 failures)

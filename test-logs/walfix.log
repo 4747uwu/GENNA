@@ -1,0 +1,21 @@
+=== A. with the fix DISABLED (wal_header_matches forced to 1) ===
+     ok        torn tail appended: store still opens
+     ok        torn tail ignored, not misread (50 edits, same as before)
+     FAIL      6 edits made after recovering from a torn tail survive the next open (50 -> 50)
+     ok        log missing: reopened with logging re-armed
+     FAIL      5 edits made after the log was rebuilt survive the next open (25 -> 25)
+     ok        stale log: reopened with logging re-armed
+     FAIL      4 edits after a stale log survive the next open (25 -> 25)
+   CRASH RECOVERY: FAILURES (3 failures)
+
+=== B. with the fix ENABLED (as shipped) ===
+     ok        torn tail appended: store still opens
+     ok        torn tail ignored, not misread (50 edits, same as before)
+     ok        6 edits made after recovering from a torn tail survive the next open (50 -> 56)
+     ok        log missing: reopened with logging re-armed
+     ok        5 edits made after the log was rebuilt survive the next open (25 -> 30)
+     ok        stale log: reopened with logging re-armed
+     ok        4 edits after a stale log survive the next open (25 -> 29)
+
+WALFIX VERDICT: PASS - pre-fix build fails 4 checks (as it must),
+  shipped build passes all of them.

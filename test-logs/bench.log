@@ -1,0 +1,91 @@
+############ TOOL VERSIONS (documented -> measured here) ############
+  git    2.43        -> 2.55.0
+  rsync  3.2.7       -> 3.4.4
+  ffmpeg (unstated)  -> 9.0
+
+############ BUILD ############
+  ok
+
+############ 1. vs MosaicML MDS - WikiText-2, mutate with history ############
+  documented: 2,755x less written, 119x faster
+WikiText-2: 10.4 MB, 36718 samples (same split as MDS)
+
+=== GENNA: 100 mutate-with-history edits on WikiText-2 ===
+  time: 0.9 ms
+  bytes written (new tree nodes): 0.084 MB
+  versions kept: 101 (all roll back for free)
+  v0 byte-exact after 100 edits: YES
+  latest version reads: OK (10921786 bytes)
+
+  NOTE: the MDS side is a Python harness (mosaicml-streaming) that is NOT
+        in this repo, so only Genna's side is re-measured above. The
+        2,755x ratio is therefore NOT re-verified here.
+
+############ 2. vs git - Redis source, 100 commits ############
+  documented: 60x less written/edit, 91x faster old-version read
+Genna initial store of 8.2 MB codebase: 4.01 MB resident (dict+chunks)
+Genna after 100 commits: +0.083 MB tree nodes for full version history
+  time: 0.9 ms (0.0091 ms/commit)
+  versions kept: 101
+  total Genna footprint: 4.09 MB (store 4.01 + history 0.083)
+  v0 byte-exact: YES
+
+  read OLDEST version (full 8.2 MB): 13.664 ms each
+  read a 20KB slice of oldest version: 0.0151 ms each
+
+  --- real git, same workload (100 commits, one appended line each) ---
+  .git after packed baseline: 2205205 bytes
+  .git after 100 commits:     3779420 bytes
+  git WROTE for 100 commits:  1574215 bytes  (1537.3 KB, 15742 bytes/commit)
+  git commit time: 17441 ms total (174.41 ms/commit)
+  genna wrote for 100 commits: 87031 bytes (870 bytes/commit)
+  -> bytes written: genna 18.1x less than git   [documented 60x]
+  git show <oldest>:src/acl.c -> 39.8944 ms each (20 runs)
+  genna 20KB slice of oldest version -> 0.0151 ms each
+  -> old-version read: genna 2642.0x faster   [documented 91x]
+
+############ 3. vs rsync - WikiText-2, 100 scattered edits ############
+  documented: 10x less over the wire (rsync 3.2.7 sent 335,439 bytes)
+=== Genna-Net vs rsync: 100 scattered edits on WikiText-2 ===
+  samples: 36718 | chunks changed: 96 | payload: 34246 bytes (33.4 KB)
+  receiver reconstruct: BYTE-EXACT
+
+  rsync sent:      335,439 bytes (documented, real rsync 3.2.7)
+  Genna-Net sent:  34246 bytes
+  -> Genna-Net 9.8x less
+  (wrote original.bin 10940747 B and edited.bin 10909341 B to C:/msys64/tmp/gn_bench for the real-rsync head-to-head)
+
+  --- real rsync 3.4.4, same change ---
+    Literal data: 328,730 bytes
+    Matched data: 10,580,611 bytes
+    Total bytes sent: 342,050
+    rsync sent 342050 bytes | Genna-Net sent 34246 bytes
+  -> over the wire: Genna-Net 10.0x less   [documented 10x]
+
+############ 4. vs ffmpeg - H.264 structural cuts ############
+  documented: ~110,000x on structural cuts, byte-exact
+== ingest ==
+  10.2 MB -> 2700 frames in 10 ms (1017 MB/s)
+  language 2700 unique frames | tree leaves 90 depth 8 | RSS 25 MB
+  90 IDR cut points
+== 1000 timeline operations ==
+  ripple cut   x619   mean 0.0009 ms
+  copy/paste   x203   mean 0.0014 ms   (clip length irrelevant)
+  scrub 4MB    x178   mean 0.1481 ms   (random version, random offset)
+  rejected (not frame-aligned): 0
+  [cut-point re-derivation, not part of the edit: 0.0135 ms/op]
+== final state ==
+  timeline 12.8 MB, 3390 frames, 823 versions
+  tree leaves 113 depth 21 | 8810 nodes = 0.5 MB
+  RSS 35 MB for a 12.8 MB timeline built from 20.4 MB of source
+  materialize whole timeline: 2 ms (6286 MB/s)
+  v0 after 1000 ops: BYTE-EXACT
+
+  --- real ffmpeg 9.0, one equivalent structural cut (-c copy) ---
+    run 1: 107.68 ms
+    run 2: 107.93 ms
+    run 3: 113.83 ms
+    ffmpeg mean: 109.81 ms   |   genna ripple cut mean: 0.0009 ms
+  -> structural cut: genna 122011x faster   [documented ~110,000x]
+
+############ BENCHMARKS DONE ############

@@ -1,0 +1,23 @@
+Genna test logs
+generated: 2026-08-13T11:33:29Z
+host:      MSYS_NT-10.0-26200 x86_64
+compiler:  gcc.exe (Rev3, Built by MSYS2 project) 16.2.0
+git/rsync/ffmpeg: 2.55.0 / 3.4.4 / 9.0
+
+result: 0 script(s) reported failure
+
+ab.log               1418 bytes   
+agg.log              1692 bytes   VERDICT: PASS
+bench.log            3911 bytes   BYTE-EXACT
+concurrent.log       2216 bytes   ALL PASS
+corruptfz.log        2782 bytes   0 seed(s) with problems
+curate.log           5051 bytes   
+deltabench.log       1177 bytes   
+fuzz12.log           1030 bytes   12 passed, 0 failed
+leak.log             1785 bytes   CLEAN
+merge.log            1134 bytes   VERDICT: PASS
+oocore.log           1783 bytes   VERDICT: PASS
+python.log          12165 bytes   7 run, 0 failed, 0 SKIPPED
+sanitized.log       10538 bytes   5 passed, 0 failed
+suite.log            6894 bytes   5 passed, 0 failed
+walfix.log           1252 bytes   VERDICT: PASS

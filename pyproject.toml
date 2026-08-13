@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genna"
+version = "0.1.0"
+description = "Versioned datasets that don't rewrite themselves: O(log n) edits, free version history, byte-exact."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Genna contributors" }]
+keywords = ["dataset", "versioning", "deduplication", "curation", "ml-data"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: C",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# The engine has no Python dependencies at all. Everything below is optional,
+# so `pip install genna` pulls in nothing.
+dependencies = []
+
+[project.optional-dependencies]
+table = ["pyarrow>=12", "numpy>=1.21"]
+semantic = ["onnxruntime>=1.15", "numpy>=1.21", "tokenizers>=0.15", "huggingface-hub>=0.20"]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/genna-engine/genna"
+Source = "https://github.com/genna-engine/genna"
+
+[tool.setuptools]
+packages = ["genna"]
+
+[tool.setuptools.package-dir]
+"" = "python"
+
+[tool.setuptools.package-data]
+genna = ["*.so", "*.dylib", "*.dll"]
+
+# ---------------------------------------------------------------------------
+# Wheels are built by cibuildwheel in CI so that `pip install genna` never
+# needs a C compiler on the user's machine. The sdist can still build from
+# source anywhere, which is why src/ and include/ ship inside it.
+# ---------------------------------------------------------------------------
+[tool.cibuildwheel]
+build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+# PyPy is skipped only because it is untested here, not because it is known
+# broken -- the library is plain ctypes, so it has a fair chance of working.
+skip = "pp* *-musllinux_i686 *_i686 *-win32"
+build-frontend = "build"
+# Import and exercise the real engine inside the built wheel, on the target
+# platform. A wheel that imports but cannot round-trip is not a working wheel.
+test-command = "python {project}/python/tests/smoke_wheel.py"
+
+[tool.cibuildwheel.linux]
+# zlib/zstd are detected at build time; installing them here is what gets
+# compression into the Linux wheels. auditwheel then vendors them in.
+before-all = "yum install -y zlib-devel libzstd-devel || apk add --no-cache zlib-dev zstd-dev || true"
+
+[tool.cibuildwheel.macos]
+before-all = "brew install zstd || true"
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"

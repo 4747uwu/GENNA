@@ -1,0 +1,23 @@
+tests/fuzz_test.c: In function 'fuzz_corrupt':
+tests/fuzz_test.c:423:50: warning: '.mut' directive output may be truncated writing 4 bytes into a region of size between 1 and 1024 [-Wformat-truncation=]
+  423 |     char mut[1024]; snprintf(mut, sizeof mut, "%s.mut", mp);
+      |                                                  ^~~~
+In function 'fuzz_corrupt_mappable',
+    inlined from 'fuzz_corrupt' at tests/fuzz_test.c:531:5:
+tests/fuzz_test.c:423:21: note: 'snprintf' output between 5 and 1028 bytes into a destination of size 1024
+  423 |     char mut[1024]; snprintf(mut, sizeof mut, "%s.mut", mp);
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  seed 1            PASS
+  seed 2            PASS
+  seed 3            PASS
+  seed 7            PASS
+  seed 42           PASS
+  seed 1337         PASS
+  seed 20260811     PASS
+  seed 99991        PASS
+  seed 2147483647   PASS
+  seed 8675309      PASS
+  seed 123456789    PASS
+  seed 5555         PASS
+
+campaign: 12 passed, 0 failed (2000 splices per seed)

@@ -1,0 +1,300 @@
+interpreter: /c/Users/P/AppData/Local/Microsoft/WindowsApps/python.exe
+   C:\Users\P\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\python.exe
+   version 3.12.10
+   pyarrow      present
+   numpy        present
+   onnxruntime  present
+   tokenizers   present
+
+==================================================================
+### tests/test_core.py
+==================================================================
+=== genna python bindings: correctness ===
+
+-- create / read round trip --
+  ok    a full read returns actual bytes
+  ok    full read is byte-identical to input
+  ok    len() == 114
+  ok    mid-range read matches the slice
+  ok    over-long read clamps, no error
+  ok    read past end returns empty
+  ok    name round-trips
+
+-- binary safety (this is where FFI usually breaks) --
+  ok    all 256 byte values survive (10240 bytes)
+  ok    embedded NUL bytes are preserved
+  ok    UTF-8 payload is byte-identical
+
+-- a payload bigger than any 32-bit truncation would survive --
+  ok    length 3,000,000 preserved exactly
+  ok    3 MB payload byte-identical
+  ok    slice deep inside matches
+
+-- versioned edits and time travel --
+  ok    insert lands in the right place
+  ok    delete restores the original bytes
+  ok    replace
+  ok    4 versions recorded, got 4
+  ok    v0 still byte-exact after 3 edits
+  ok    versions[-1] is the head
+  ok    each version reports its own length [37, 45, 37, 37] == [37, 45, 37, 37]
+  ok    out-of-range version raises IndexError
+
+-- rollback keeps history --
+  ok    baseline read is non-empty (no vacuous comparison below)
+  ok    content changed
+  ok    rollback(0) restores v0 byte-exactly
+  ok    rollback appended a version, destroyed none
+  ok    the intermediate version is still there
+
+-- differential: 400 random splices vs a Python shadow buffer --
+  ok    400 random splices matched the shadow byte-for-byte
+  ok    final length agrees with the shadow
+
+-- search --
+  ok    'engine' found 3x across objects (got 3)
+  ok    hits are (name, offset) pairs
+  ok    absent needle returns []
+  ok    every reported offset really points at the needle
+
+-- engine container API --
+  ok    len(engine) == 2 objects
+  ok    __contains__ works
+  ok    missing name is not 'in' engine
+  ok    engine['name'] indexes
+  ok    iteration yields objects
+  ok    missing object raises KeyError
+
+-- errors are raised, not swallowed --
+  ok    editing past the end raises GennaError
+  ok    over-long object name raises ValueError
+  ok    wrong insert type raises TypeError
+  ok    using a closed engine raises GennaError
+
+-- persistence through the bindings --
+  ok    save() wrote the store file
+  ok    WAL is armed after save()
+  ok    WAL reports healthy
+  ok    engine knows its store path
+  ok    all 26 versions came back
+  ok    every one of 26 versions is byte-identical after reopen
+
+-- Dataset: the record-level API --
+  ok    5 records ingested (got 5)
+  ok    JSON parses
+  ok    content() reads the text field
+  ok    dedup left 3 unique records (got 3)
+  ok    step reports 2 removed (got 2)
+  ok    dedup created versioned edits
+  ok    filter_length dropped the short record (got 2)
+  ok    rollback restored the original length
+  ok    rollback is byte-exact
+  ok    all 5 records are back
+
+BINDINGS: ALL PASS (0 failures / 58 checks)
+
+==================================================================
+### tests/test_threads.py
+==================================================================
+=== genna bindings: thread safety ===
+
+-- 8 threads editing separate objects, 60 edits each --
+  ok    no thread raised ([])
+  ok    all 8 objects have exactly the content their thread wrote (bad: [])
+  ok    each object has exactly 61 versions
+
+-- readers racing a writer on the same object --
+  ok    no torn reads observed while writing ([])
+  ok    121 versions after 120 edits (got 121)
+
+THREADS: ALL PASS (0 failures)
+
+==================================================================
+### tests/test_table.py
+==================================================================
+=== genna columnar tables ===
+
+-- ingest: 20,000 rows x 5 columns --
+  ok    20,000 rows ingested
+  ok    schema round-trips: ['id', 'label', 'text', 'score', 'source']
+  ok    to_arrow returns every row
+  ok    column values are identical after a round trip
+  ok    float column is exact after a round trip
+   store: 140,544 bytes
+
+-- cost of a column-scoped edit (relabel one column) --
+  ok    relabelled 10,000 values
+   versions per column after relabel: {'id': 1, 'label': 2, 'text': 1, 'score': 1, 'source': 1}
+  ok    label column has 2 versions
+  ok    the other 4 columns were NOT touched (1 version each)
+  ok    row-major edit kept all 20,000 records
+   row-major replaced 10,000 values across 10,000 splices
+   columnar : 140,544 -> 174,609  (+34,065 B)
+   row-major: 163,025 -> 959,807  (+796,782 B)
+  ok    column-scoped relabel costs less than row-major (34,065 vs 796,782 B, 23.4x)
+
+-- drop a label class (deletion vector, not a rewrite) --
+  ok    dropped 5,000 rows of class 'bird'
+  ok    15,000 live rows remain
+  ok    NO data column was rewritten - only the validity vector
+   store 174,609 -> 174,671 (+62 B for 5,000 deletions)
+  ok    deleting 5,000 rows cost fewer than 5,000 bytes
+  ok    to_arrow honours the deletion vector
+  ok    no 'bird' rows survive materialization
+
+-- dedup on a single column --
+  ok    dedup on 'source' left 50 rows (50 distinct), removed 1950
+
+-- compact reclaims tombstoned rows --
+  ok    compact removed 5,000 tombstoned rows
+  ok    physical rows 20,000 -> 15,000
+  ok    content unchanged by compaction
+
+-- save / reopen --
+  ok    schema survives reopen
+  ok    every cell identical after save -> reopen
+
+TABLE: ALL PASS (0 failures / 22 checks)
+
+==================================================================
+### tests/test_query.py
+==================================================================
+=== query surface ===
+
+-- 'which versions touched this byte range?' --
+  ok    range_history matches brute force for record 137: [] == []
+  ok    NO false negatives across 58 records: every real change is reported (6 true changes)
+   false positives: 42 extra candidates over 58 records (6 true changes) - chunk-granularity, filter then confirm
+  ok    every recorded edit appears in its record's history
+  ok    record 0 was never edited and reports no history
+  ok    range_changed never reports 'unchanged' for a range that differs (conservative in the safe direction)
+
+-- cost: pointer walk vs materialize-and-compare --
+   range_history      :      3.6 us
+   materialize + diff :    103.7 us
+  ok    structural query is 29.1x faster than reading every version
+
+-- table diff: rows added / removed / cells changed --
+  ok    diff reports 167 rows removed (dropped 167)
+  ok    diff reports 0 rows added
+  ok    the removed rows are exactly the 'cat' rows
+  ok    diff by key lists 167 removed ids
+  ok    diff(v, v) reports no change at all
+
+QUERY: ALL PASS (0 failures / 11 checks)
+
+==================================================================
+### tests/test_lazy.py
+==================================================================
+=== deferred transforms (lazy tags) ===
+
+-- correctness: lazy must equal eager, exactly --
+  ok    lazy relabel produces byte-identical values to the eager rewrite
+  ok    one pending op recorded
+  ok    add_range applies to exactly rows [5000,15000)
+  ok    range add is one op
+  ok    a second op composes on the first
+  ok    two pending ops
+
+-- cost of the write --
+   eager relabel : 53,455 -> 84,118  (+30,663 B)
+   lazy  relabel : 53,472 -> 53,881  (+409 B, op itself 56 B)
+  ok    lazy write is smaller: 409 vs 30,663 B (75.0x)
+  ok    the op itself is 56 bytes, independent of the 10,000 rows it affects
+
+-- does the write scale with rows affected? --
+    1,000 rows -> +178 B
+   10,000 rows -> +277 B
+   20,000 rows -> +606 B
+  ok    write cost is flat across 1k..20k rows (spread 428 B) - O(1) in rows affected
+
+-- what the deferral costs: read amplification --
+   read with 0 pending ops :    0.68 ms
+   read with 16 pending ops:    3.47 ms  (5.1x)
+  ok    reads do get slower with pending ops - this is the trade, not free
+   after compact_column()  :    0.86 ms (16 ops folded)
+  ok    compact folded all 16 ops
+  ok    compaction restores read speed
+  ok    no ops pending after compaction
+
+-- pending ops survive save/reopen --
+  ok    deferred label remap survives reopen
+  ok    deferred range add survives reopen
+  ok    the op log came back too
+
+LAZY: ALL PASS (0 failures / 16 checks)
+
+==================================================================
+### tests/test_sketch.py
+==================================================================
+=== versioned sketches ===
+
+-- HLL accuracy vs exact (1 KB of registers) --
+   true     100  est     104  err  4.00%
+   true   1,000  est   1,020  err  2.00%
+   true  10,000  est   9,799  err  2.01%
+   true 100,000  est  99,940  err  0.06%
+  ok    worst relative error 4.00% is within the ~3-5% expected at p=10
+  ok    merge is a union: 7,432 vs true 7,500 (0.9%) - mergeable, so it composes
+
+-- distinct at any historical version --
+  ok    v1: estimated 406 distinct labels vs exact 400
+  ok    v2 after collapsing 200 labels: estimated 204 vs exact 201
+  ok    cardinality dropped across the edit (406 -> 204)
+  ok    the older version's sketch is unchanged by the later edit
+
+-- lookup vs recompute --
+   sketch lookup :   0.108 ms
+   exact rescan  :   4.780 ms
+  ok    lookup is 44x cheaper than rescanning the historical version
+
+-- what the sketch costs on write --
+   commit without sketch:    0.05 ms
+   commit with sketch   :   26.40 ms
+  ok    the sketch is not free at write time (509.5x) - it moves cost from read to write
+
+SKETCH: ALL PASS (0 failures / 8 checks)
+
+==================================================================
+### tests/test_semantic.py
+==================================================================
+=== semantic vs lexical near-dedup ===
+
+loading model (first run downloads ~90 MB)...
+model: sentence-transformers/all-MiniLM-L6-v2
+
+-- paraphrases (same meaning, different words) --
+   semantic   lexical   pair
+      0.559     0.333   'The cat sat on the mat.'
+      0.587     0.039   'How do I reset my password?'
+      0.770     0.195   'The film was terrible and I want my money ba'
+      0.652     0.001   'Python is a programming language used for ma'
+
+-- surface variants (typos/spacing: both should catch) --
+      0.990     0.916   'The quick brown fox jumps over the lazy dog.'
+      0.837     0.834   'Deep learning models require large datasets.'
+
+-- distinct (neither may catch) --
+     -0.003     0.020   'The cat sat on the mat.'
+      0.113    -0.077   'How do I reset my password?'
+     -0.032     0.085   'Python is a programming language used for ma'
+
+-- separability (does ANY threshold work?) --
+  semantic: worst duplicate 0.559 vs best non-duplicate 0.113  -> margin +0.445
+  lexical:  worst duplicate 0.001 vs best non-duplicate 0.085  -> margin -0.084
+  ok    semantic IS separable: every duplicate scores above every non-duplicate (margin 0.445)
+  ok    lexical is NOT separable at any threshold (margin -0.084) - so this is a real improvement, not a tuning artifact
+  any threshold in (0.113, 0.559) separates them; using 0.34 below
+  ok    at 0.34, semantic catches all 4 paraphrases
+  ok    at 0.34, semantic flags none of the unrelated pairs
+
+-- end to end: Dataset.near_dedup on a paraphrase corpus --
+  ok    exact dedup removes nothing here (all records differ): 11
+  <Step near_dedup: 11->7 records, v0->v4 (4 edits)>
+  ok    near_dedup removed exactly the 4 paraphrase partners (removed 4)
+  ok    7 records left, unrelated ones untouched
+  ok    near_dedup is a reversible versioned edit
+
+SEMANTIC: ALL PASS (0 failures)
+
+### PYTHON SUITE: 7 run, 0 failed, 0 SKIPPED

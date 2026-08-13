@@ -1,0 +1,27 @@
+== build ==
+   ok
+
+=== three-way merge ===
+
+  ok    disjoint edits merge (rc=0, head span [1000,1020), other span [150000,150030))
+  ok    merged document is byte-identical to applying both edits by hand (199977 bytes)
+  ok    the head version it merged into is unchanged
+  ok    the other version is unchanged
+  ok    the common ancestor is unchanged
+  ok    overlapping edits are REFUSED, not silently resolved (rc=-2)
+  ok    the conflict is reported in the info struct
+  ok    a conflicting merge appends NO version (3 == 3)
+        head span [5050,5150), other span [5000,5100)
+  ok    merging into an unchanged head succeeds
+  ok    and yields exactly the other side (fast-forward, 199993 bytes)
+  ok    merging head into itself succeeds rather than conflicting (identical=1)
+  ok    and is recognised as convergence, not a clash
+  ok    the document is unchanged (idempotent, 199993 bytes)
+  ok    merge before saving
+  ok    merged store saves
+  ok    merged store reopens
+  ok    the merged version is byte-exact after a save/open cycle (199929 bytes)
+
+MERGE: ALL PASS (0 failures)
+
+MERGE VERDICT: PASS

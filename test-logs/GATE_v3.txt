@@ -1,0 +1,1088 @@
+==================================================================
+### suite
+==================================================================
+############ GENNA SUITE [plain] ############
+CC     = gcc
+CFLAGS = -O2 -g -std=c11 -D_GNU_SOURCE -DGN_HAVE_ZLIB -DGN_HAVE_ZSTD -Iinclude -Wall -Wextra
+corpus = sample_ml_dataset.jsonl
+
+===== 1. test_genna (pre-existing: 11 correctness assertions + demo numbers) =====
+=== GENNA v1 test run ===
+
+-- correctness --
+  ok    C+R: exact round trip
+  ok    R: byte-range read mid-file
+  ok    U: insert mid-file
+  ok    U: delete restores original
+  ok    U: replace at file start
+  ok    versions: v0 readable after 3 edits
+  ok    versions: history length = 4
+  ok    search: 'engine' found 3x across objects
+  ok    search: absent word -> instant corpus-wide no
+  ok    search: multi-token phrase match
+  ok    dedup: identical chunk reused
+
+-- demo numbers (100MB pseudo-English) --
+  ingest: 100.0 MB in 3211 ms (31 MB/s)
+  resident tokens: 114.3 MB  (0.87x vs raw)
+  chunks: 29260 created, 0 deduped
+  search 'compression': genna 130.7 ms (748863 hits) vs memmem raw 52.5 ms (748863 hits)
+  U mid-file:  genna 0.024 ms   vs rewrite 13.9 ms   (582x)
+  U delete 10MB chapter: 0.030 ms (file untouched except seams)
+  ok    U@100MB: insert survives at seam
+  tokens scanned: 30.0 M   tokens detokenized: 0.00 M (toll paid only where bytes were requested)
+
+TEST RUN: ALL CLAIMS HELD (0 failures)
+  PASS  test_genna
+
+===== 2. edge (pre-existing: 19 boundary cases) =====
+  ok   read empty object -> 0 bytes
+  ok   insert into empty object
+  ok   empty+insert reads back
+  ok   delete entire content
+  ok   emptied object reads 0
+  ok   read past end clamps
+  ok   read entirely past end -> 0
+  ok   delete beyond end clamps
+  ok   over-delete leaves prefix
+  ok   append at exact end
+  ok   append reads back
+  ok   noop edit at end
+  ok   noop edit unchanged
+  ok   insert past end rejected
+  ok   2MB insert mid-object
+  ok   huge insert seam correct
+  ok   huge insert length correct
+  ok   zero-length read -> 0
+  ok   v0 of edited object readable
+
+ALL EDGE CASES PASS (0 failures)
+  PASS  edge
+
+===== 3. fuzz (new: splice / search / gc-refcount / persistence) =====
+  [audit] 3774 reachable nodes, 0 refcount mismatches
+=== GENNA fuzz suite (seed 20260811) ===
+
+-- splice fuzz: 2000 random splices, full byte compare after each --
+  ok    2000 splices, engine matched shadow byte-for-byte every time
+  ok    all 2001 historical versions still read back correctly
+
+-- search fuzz: 400 needles vs brute force --
+  ok    400 needles: hit counts and offsets matched brute force (289 present, 111 absent)
+
+-- gc/refcount fuzz: edits + history trims, then audit the DAG --
+  ok    content still exact after 112 trims
+  ok    refcount audit over 40 live versions: 0 mismatches
+  ok    every node reclaimed on free: 3774 live before, 0 after (baseline 0)
+
+-- persistence fuzz: save/reopen at random points mid-stream --
+  ok    500 edits across 27 save/reopen cycles, all versions exact
+
+-- corrupt-store fuzz: 250 mutated stores, checksums REPAIRED --
+  ok    250 corrupted stores: 250 rejected, 0 loaded and read without crashing
+
+FUZZ: ALL PASS (0 failures)  [reproduce with: fuzz_test 20260811 2000]
+  PASS  fuzz_test
+
+===== 4. persist round-trip (new: byte-exact across a process boundary) =====
+-- phase 1: ingest sample_ml_dataset.jsonl (2.40 MB), 30 edits, save --
+   versions built: 31
+   reference: 31 versions, 74.5 MB of bytes
+   store: 135 chunks, 0.41 MB resident
+   saved -> C:/msys64/tmp/gn_suite_plain/p.gn
+  ok    v0 still byte-exact in the saving process
+-- phase 2: FRESH PROCESS, open C:/msys64/tmp/gn_suite_plain/p.gn, memcmp every version --
+  ok    object count restored (1)
+  ok    version count survived: 31 (expected 31)
+  ok    all 31 versions byte-exact after reload (74.5 MB compared)
+  ok    save->open->save byte-identical over 739810 payload bytes - structural sharing preserved
+  ok    engine still writable after reload
+  ok    post-reload edit changed length correctly (2519540 -> 2519560)
+  ok    post-reload edit lands at the right offset
+  ok    v0 STILL byte-exact after a post-reload edit
+
+PERSIST ROUND-TRIP: BYTE-EXACT (0 failures)
+  PASS  persist_test
+
+===== 5. crash recovery (new: SIGKILL mid-edit) =====
+=== crash recovery: SIGKILL mid-edit ===
+  setup: ingested sample_ml_dataset.jsonl and saved the initial snapshot
+  round 0: killed after 350 ms | witnessed 50, recovered 50, replayed 25 WAL records
+  ok        no lost commits (recovered 50 >= witnessed 50)
+  ok        no corruption: 51/51 versions byte-exact vs crash-free reference (122.6 MB)
+  round 1: killed after 487 ms | witnessed 125, recovered 125, replayed 25 WAL records
+  ok        no lost commits (recovered 125 >= witnessed 125)
+  ok        no corruption: 126/126 versions byte-exact vs crash-free reference (302.8 MB)
+  round 2: killed after 624 ms | witnessed 225, recovered 225, replayed 25 WAL records
+  ok        no lost commits (recovered 225 >= witnessed 225)
+  ok        no corruption: 226/226 versions byte-exact vs crash-free reference (543.2 MB)
+  round 3: killed after 361 ms | witnessed 275, recovered 275, replayed 25 WAL records
+  ok        no lost commits (recovered 275 >= witnessed 275)
+  ok        no corruption: 276/276 versions byte-exact vs crash-free reference (663.3 MB)
+  round 4: killed after 498 ms | witnessed 350, recovered 350, replayed 25 WAL records
+  ok        no lost commits (recovered 350 >= witnessed 350)
+  ok        no corruption: 351/351 versions byte-exact vs crash-free reference (843.6 MB)
+  round 5: killed after 635 ms | witnessed 449, recovered 450, replayed 25 WAL records
+  ok        no lost commits (recovered 450 >= witnessed 449)
+  ok        no corruption: 451/451 versions byte-exact vs crash-free reference (1084.1 MB)
+
+  -- WAL forensics --
+  ok        torn tail appended: store still opens
+  ok        torn tail ignored, not misread (450 edits, same as before)
+  ok        6 edits made after recovering from a torn tail survive the next open (450 -> 456)
+  ok        store opens with no WAL at all
+  ok        without the WAL we fall back to the last checkpoint: 425 edits vs 456 with the log (the log was carrying 31)
+  ok        log missing: reopened with logging re-armed
+  ok        5 edits made after the log was rebuilt survive the next open (425 -> 430)
+  ok        stale log: reopened with logging re-armed
+  ok        4 edits after a stale log survive the next open (425 -> 429)
+
+CRASH RECOVERY: SURVIVED (0 failures)
+  PASS  crash_test
+
+############ SUITE [plain]: 5 passed, 0 failed ############
+### suite -> exit 0
+
+==================================================================
+### sanitized
+==================================================================
+############ GENNA SUITE [asan-ubsan] ############
+CC     = clang
+CFLAGS = -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined -g -O1 -std=c11 -D_GNU_SOURCE -DGN_HAVE_ZLIB -DGN_HAVE_ZSTD -Iinclude -I/mingw64/include -Wall -Wextra
+corpus = sample_ml_dataset.jsonl
+
+===== 1. test_genna (pre-existing: 11 correctness assertions + demo numbers) =====
+  (warnings building test_genna.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+=== GENNA v1 test run ===
+
+-- correctness --
+  ok    C+R: exact round trip
+  ok    R: byte-range read mid-file
+  ok    U: insert mid-file
+  ok    U: delete restores original
+  ok    U: replace at file start
+  ok    versions: v0 readable after 3 edits
+  ok    versions: history length = 4
+  ok    search: 'engine' found 3x across objects
+  ok    search: absent word -> instant corpus-wide no
+  ok    search: multi-token phrase match
+  ok    dedup: identical chunk reused
+
+-- demo numbers (100MB pseudo-English) --
+  ingest: 100.0 MB in 6482 ms (15 MB/s)
+  resident tokens: 114.3 MB  (0.87x vs raw)
+  chunks: 29260 created, 0 deduped
+  search 'compression': genna 383.8 ms (748863 hits) vs memmem raw 143.6 ms (748863 hits)
+  U mid-file:  genna 0.255 ms   vs rewrite 42.1 ms   (165x)
+  U delete 10MB chapter: 0.154 ms (file untouched except seams)
+  ok    U@100MB: insert survives at seam
+  tokens scanned: 30.0 M   tokens detokenized: 0.00 M (toll paid only where bytes were requested)
+
+TEST RUN: ALL CLAIMS HELD (0 failures)
+  PASS  test_genna
+
+===== 2. edge (pre-existing: 19 boundary cases) =====
+  (warnings building edge.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+  ok   read empty object -> 0 bytes
+  ok   insert into empty object
+  ok   empty+insert reads back
+  ok   delete entire content
+  ok   emptied object reads 0
+  ok   read past end clamps
+  ok   read entirely past end -> 0
+  ok   delete beyond end clamps
+  ok   over-delete leaves prefix
+  ok   append at exact end
+  ok   append reads back
+  ok   noop edit at end
+  ok   noop edit unchanged
+  ok   insert past end rejected
+  ok   2MB insert mid-object
+  ok   huge insert seam correct
+  ok   huge insert length correct
+  ok   zero-length read -> 0
+  ok   v0 of edited object readable
+
+ALL EDGE CASES PASS (0 failures)
+  PASS  edge
+
+===== 3. fuzz (new: splice / search / gc-refcount / persistence) =====
+  (warnings building fuzz_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+  [audit] 1271 reachable nodes, 0 refcount mismatches
+=== GENNA fuzz suite (seed 20260811) ===
+
+-- splice fuzz: 600 random splices, full byte compare after each --
+  ok    600 splices, engine matched shadow byte-for-byte every time
+  ok    all 601 historical versions still read back correctly
+
+-- search fuzz: 400 needles vs brute force --
+  ok    400 needles: hit counts and offsets matched brute force (289 present, 111 absent)
+
+-- gc/refcount fuzz: edits + history trims, then audit the DAG --
+  ok    content still exact after 37 trims
+  ok    refcount audit over 12 live versions: 0 mismatches
+  ok    every node reclaimed on free: 1271 live before, 0 after (baseline 0)
+
+-- persistence fuzz: save/reopen at random points mid-stream --
+  ok    150 edits across 13 save/reopen cycles, all versions exact
+
+-- corrupt-store fuzz: 75 mutated stores, checksums REPAIRED --
+  ok    75 corrupted stores: 75 rejected, 0 loaded and read without crashing
+
+FUZZ: ALL PASS (0 failures)  [reproduce with: fuzz_test 20260811 600]
+  PASS  fuzz_test
+
+===== 4. persist round-trip (new: byte-exact across a process boundary) =====
+  (warnings building persist_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+-- phase 1: ingest sample_ml_dataset.jsonl (2.40 MB), 30 edits, save --
+   versions built: 31
+   reference: 31 versions, 74.5 MB of bytes
+   store: 135 chunks, 0.41 MB resident
+   saved -> C:/msys64/tmp/gn_suite_asan-ubsan/p.gn
+  ok    v0 still byte-exact in the saving process
+-- phase 2: FRESH PROCESS, open C:/msys64/tmp/gn_suite_asan-ubsan/p.gn, memcmp every version --
+  ok    object count restored (1)
+  ok    version count survived: 31 (expected 31)
+  ok    all 31 versions byte-exact after reload (74.5 MB compared)
+  ok    save->open->save byte-identical over 739810 payload bytes - structural sharing preserved
+  ok    engine still writable after reload
+  ok    post-reload edit changed length correctly (2519540 -> 2519560)
+  ok    post-reload edit lands at the right offset
+  ok    v0 STILL byte-exact after a post-reload edit
+
+PERSIST ROUND-TRIP: BYTE-EXACT (0 failures)
+  PASS  persist_test
+
+===== 5. crash recovery (new: SIGKILL mid-edit) =====
+  (warnings building crash_test.exe:)
+C:/msys64/mingw64/include/winnt.h:3193:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:3200:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7441:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7449:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7560:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+C:/msys64/mingw64/include/winnt.h:7909:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+=== crash recovery: SIGKILL mid-edit ===
+  setup: ingested sample_ml_dataset.jsonl and saved the initial snapshot
+  round 0: killed after 350 ms | witnessed 50, recovered 50, replayed 25 WAL records
+  ok        no lost commits (recovered 50 >= witnessed 50)
+  ok        no corruption: 51/51 versions byte-exact vs crash-free reference (122.6 MB)
+  round 1: killed after 487 ms | witnessed 125, recovered 125, replayed 25 WAL records
+  ok        no lost commits (recovered 125 >= witnessed 125)
+  ok        no corruption: 126/126 versions byte-exact vs crash-free reference (302.8 MB)
+  round 2: killed after 624 ms | witnessed 218, recovered 218, replayed 18 WAL records
+  ok        no lost commits (recovered 218 >= witnessed 218)
+  ok        no corruption: 219/219 versions byte-exact vs crash-free reference (526.3 MB)
+
+  -- WAL forensics --
+  ok        torn tail appended: store still opens
+  ok        torn tail ignored, not misread (218 edits, same as before)
+  ok        6 edits made after recovering from a torn tail survive the next open (218 -> 224)
+  ok        store opens with no WAL at all
+  ok        without the WAL we fall back to the last checkpoint: 200 edits vs 224 with the log (the log was carrying 24)
+  ok        log missing: reopened with logging re-armed
+  ok        5 edits made after the log was rebuilt survive the next open (200 -> 205)
+  ok        stale log: reopened with logging re-armed
+  ok        4 edits after a stale log survive the next open (200 -> 204)
+
+CRASH RECOVERY: SURVIVED (0 failures)
+  PASS  crash_test
+
+############ SUITE [asan-ubsan]: 5 passed, 0 failed ############
+### sanitized -> exit 0
+
+==================================================================
+### leak
+==================================================================
+== build (with allocator wrapping) ==
+   ok
+
+=== leak accounting (linker --wrap over malloc/free/calloc/realloc) ===
+  [leak] engine new/free        live 0 bytes in 0 blocks | lifetime 11 blocks, peak 2.13 MB
+  ok    engine new/free: no bytes outstanding (0 blocks)
+  [leak] dict train + create    live 0 bytes in 0 blocks | lifetime 38 blocks, peak 98.91 MB
+  ok    dict train + create: no bytes outstanding (0 blocks)
+  [leak] 500 splices + history  live 0 bytes in 0 blocks | lifetime 1540 blocks, peak 98.91 MB
+  ok    500 splices + history: no bytes outstanding (0 blocks)
+  [leak] trim history           live 0 bytes in 0 blocks | lifetime 533 blocks, peak 98.91 MB
+  ok    trim history: no bytes outstanding (0 blocks)
+  ok    gn_delete: object held 363 tree nodes
+  ok    gn_delete releases the whole version history: 0 nodes live after delete vs 0 before create
+  [leak] gn_delete (drops an object mid-session) live 0 bytes in 0 blocks | lifetime 171 blocks, peak 98.91 MB
+  ok    gn_delete (drops an object mid-session): no bytes outstanding (0 blocks)
+  [leak] search                 live 0 bytes in 0 blocks | lifetime 46 blocks, peak 98.91 MB
+  ok    search: no bytes outstanding (0 blocks)
+  [leak] save + open + edit + close live 0 bytes in 0 blocks | lifetime 355 blocks, peak 98.91 MB
+  ok    save + open + edit + close: no bytes outstanding (0 blocks)
+  [leak] open + WAL replay      live 0 bytes in 0 blocks | lifetime 375 blocks, peak 3.21 MB
+  ok    open + WAL replay: no bytes outstanding (0 blocks)
+  [leak] failed open of a corrupt store live 0 bytes in 0 blocks | lifetime 1 blocks, peak 0.00 MB
+  ok    failed open of a corrupt store: no bytes outstanding (0 blocks)
+  ok    treap: 0 nodes live at exit
+
+LEAK CHECK: CLEAN (0 failures)
+### leak -> exit 0
+
+==================================================================
+### fuzz12
+==================================================================
+  seed 1            PASS
+  seed 2            PASS
+  seed 3            PASS
+  seed 7            PASS
+  seed 42           PASS
+  seed 1337         PASS
+  seed 20260811     PASS
+  seed 99991        PASS
+  seed 2147483647   PASS
+  seed 8675309      PASS
+  seed 123456789    PASS
+  seed 5555         PASS
+
+campaign: 12 passed, 0 failed (2000 splices per seed)
+### fuzz12 -> exit 0
+
+==================================================================
+### curate
+==================================================================
+== build genna-curate ==
+genna_curate.c: In function 'gn_embed':
+genna_curate.c:408:5: warning: this 'while' clause does not guard... [-Wmisleading-indentation]
+  408 |     while(m>0&&t[m-1]==' ')m--; t[m]=0;
+      |     ^~~~~
+genna_curate.c:408:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'while'
+  408 |     while(m>0&&t[m-1]==' ')m--; t[m]=0;
+      |                                 ^
+genna_curate.c: In function 'op_head':
+genna_curate.c:486:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+  486 |     if(n<=0) n=5; if((uint32_t)n>s->idx.n) n=s->idx.n;
+      |     ^~
+genna_curate.c:486:19: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+  486 |     if(n<=0) n=5; if((uint32_t)n>s->idx.n) n=s->idx.n;
+      |                   ^~
+   ok
+
+== session 1: curate -> save -> exit ==
+ingested sample_ml_dataset.jsonl: 24500 records, 2.40 MB
+  (in RAM — 'save <path>' to make this session survive exit)
+
+Genna structural-sharing engine active. Every curate op is a
+byte-exact versioned edit. Type 'help' for commands.
+
+curate> count
+  24500 records
+curate> dedup
+  removed 24333 exact duplicates in 62.51 ms -> v24333
+curate> filter-length 20 0
+  dropped 0 out-of-range records in 0.01 ms -> v24333
+curate> drop-contains spam
+  dropped 0 records in 0.04 ms -> v24333
+curate> replace model MODEL
+  replaced 150 occurrences in 0.48 ms -> v24483
+curate> versions
+  24484 versions (v0 = original, v24483 = current head):
+    v0: 2519678 bytes
+    v1: 2519570 bytes
+    v2: 2519464 bytes
+    v3: 2519420 bytes
+    ... 24476 intermediate versions ...
+    v24480: 17116 bytes
+    v24481: 17116 bytes
+    v24482: 17116 bytes
+    v24483: 17116 bytes
+curate> export 0 C:/msys64/tmp/gn_cur/v0.txt
+  exported v0 (2519678 bytes) -> C:/msys64/tmp/gn_cur/v0.txt
+curate> export 1 C:/msys64/tmp/gn_cur/v1.txt
+  exported v1 (2519570 bytes) -> C:/msys64/tmp/gn_cur/v1.txt
+curate> export 2 C:/msys64/tmp/gn_cur/v2.txt
+  exported v2 (2519464 bytes) -> C:/msys64/tmp/gn_cur/v2.txt
+curate> stats
+  versions:        24484 (all rollback-able)
+  current records: 167
+  current size:    16.7 KB
+  store resident:  0.41 MB (dict + chunks)
+  history written: 9189.2 KB of tree nodes for ALL edits
+  (a shard-rewrite format would rewrite whole shards per edit)
+curate> save C:/msys64/tmp/gn_cur/store.gn
+  saved 24484 versions of 'sample_ml_dataset.jsonl' -> C:/msys64/tmp/gn_cur/store.gn
+  4285.3 KB on disk for 16.7 KB of current content + all history (39 ms)
+  WAL active: further edits are logged before they are applied
+curate> quit
+
+session ended. store: C:/msys64/tmp/gn_cur/store.gn (0 edits logged this session).
+  reopen with: C:\msys64\tmp\gn_cur\genna-curate.exe --open C:/msys64/tmp/gn_cur/store.gn
+   (exit 0)
+
+== process has exited. store on disk: ==
+   /tmp/gn_cur/store.gn          4388100 bytes
+   /tmp/gn_cur/store.gn.wal           32 bytes
+
+== session 2: NEW PROCESS -> open -> rollback ==
+  opened C:/msys64/tmp/gn_cur/store.gn: 'sample_ml_dataset.jsonl', 167 records, 24484 versions (v0..v24483 all rollback-able) in 19 ms
+
+Genna structural-sharing engine active. Every curate op is a
+byte-exact versioned edit. Type 'help' for commands.
+
+curate> count
+  167 records
+curate> versions
+  24484 versions (v0 = original, v24483 = current head):
+    v0: 2519678 bytes
+    v1: 2519570 bytes
+    v2: 2519464 bytes
+    v3: 2519420 bytes
+    ... 24476 intermediate versions ...
+    v24480: 17116 bytes
+    v24481: 17116 bytes
+    v24482: 17116 bytes
+    v24483: 17116 bytes
+curate> export 0 C:/msys64/tmp/gn_cur/r_v0.txt
+  exported v0 (2519678 bytes) -> C:/msys64/tmp/gn_cur/r_v0.txt
+curate> export 1 C:/msys64/tmp/gn_cur/r_v1.txt
+  exported v1 (2519570 bytes) -> C:/msys64/tmp/gn_cur/r_v1.txt
+curate> export 2 C:/msys64/tmp/gn_cur/r_v2.txt
+  exported v2 (2519464 bytes) -> C:/msys64/tmp/gn_cur/r_v2.txt
+curate> rollback 0
+  rolled back to v0 -> new head is v24484 (history preserved)
+curate> export 24484 C:/msys64/tmp/gn_cur/r_rollback0.txt
+  exported v24484 (2519678 bytes) -> C:/msys64/tmp/gn_cur/r_rollback0.txt
+curate> count
+  24500 records
+curate> quit
+
+session ended. store: C:/msys64/tmp/gn_cur/store.gn (1 edits logged this session).
+  reopen with: C:\msys64\tmp\gn_cur\genna-curate.exe --open C:/msys64/tmp/gn_cur/store.gn
+   (exit 0)
+
+== byte-exactness: pre-save exports vs post-reload exports ==
+   ok    v0 identical across the process boundary (2519678 bytes)
+   ok    v1 identical across the process boundary (2519570 bytes)
+   ok    v2 identical across the process boundary (2519464 bytes)
+   ok    rollback to v0 after restart is byte-exact vs the original v0 (2519678 bytes)
+   ok    reloaded v0 == the original ingested dataset, byte for byte
+
+CURATE PERSISTENCE: PASS (0 failures)
+### curate -> exit 0
+
+==================================================================
+### walfix
+==================================================================
+=== A. with the fix DISABLED (wal_header_matches forced to 1) ===
+     ok        torn tail appended: store still opens
+     ok        torn tail ignored, not misread (50 edits, same as before)
+     FAIL      6 edits made after recovering from a torn tail survive the next open (50 -> 50)
+     ok        log missing: reopened with logging re-armed
+     FAIL      5 edits made after the log was rebuilt survive the next open (25 -> 25)
+     ok        stale log: reopened with logging re-armed
+     FAIL      4 edits after a stale log survive the next open (25 -> 25)
+   CRASH RECOVERY: FAILURES (3 failures)
+
+=== B. with the fix ENABLED (as shipped) ===
+     ok        torn tail appended: store still opens
+     ok        torn tail ignored, not misread (50 edits, same as before)
+     ok        6 edits made after recovering from a torn tail survive the next open (50 -> 56)
+     ok        log missing: reopened with logging re-armed
+     ok        5 edits made after the log was rebuilt survive the next open (25 -> 30)
+     ok        stale log: reopened with logging re-armed
+     ok        4 edits after a stale log survive the next open (25 -> 29)
+
+WALFIX VERDICT: PASS - pre-fix build fails 4 checks (as it must),
+  shipped build passes all of them.
+### walfix -> exit 0
+
+==================================================================
+### corruptfz
+==================================================================
+  seed 11   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 22   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 33   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 44   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 55   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 66   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 77   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 88   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 99   clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 101  clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 202  clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+  seed 303  clean | 100 corrupted stores: 100 rejected, 0 loaded and read without crashing
+
+corrupt-store campaign: 0 seed(s) with problems
+### corruptfz -> exit 0
+
+==================================================================
+### concurrent
+==================================================================
+== build ==
+   ok
+
+=== optimistic concurrency: 8 writers racing, 5 rounds ===
+  round 0: base gen 1 -> 2 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 1 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 1: base gen 2 -> 3 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 2 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 2: base gen 3 -> 4 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 3 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 3: base gen 4 -> 5 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 4 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+  round 4: base gen 5 -> 6 | won 1, conflict 7, locked 0, error 0
+  ok        no writer failed unexpectedly
+  ok        at most ONE writer committed against gen 5 (got 1) - more would mean a silent overwrite
+  ok        every writer got a definite answer (1+7+0 of 8)
+  ok        generation advanced exactly once
+  ok        store still opens after the race
+
+  totals: 5 committed, 35 conflicted, 0 lock-timeout, 0 errors
+  ok        the store contains exactly the 5 winning edits (found 5) - no lost update, no phantom
+
+  -- with a retry loop, every writer should eventually land --
+  ok        all 8 writers landed via retry (8)
+
+CONCURRENCY: ALL PASS (0 failures)
+### concurrent -> exit 0
+
+==================================================================
+### oocore
+==================================================================
+   workdir /d/website/devops/GENNA/.oocore-work (7370 MB free, need ~1408 MB)
+== build ==
+   ok
+
+=== out-of-core: mapped vs heap-resident store ===
+   payload: 192 MB of binary data
+
+  ok    mappable store written (2252 ms)
+  ok    compressed store written (369162 ms)
+   on disk: mappable 770.0 MB, compressed 234.3 MB (compression forfeited: 3.29x bigger)
+  ok    compressed store opens
+  ok    compressed store is NOT mapped
+  ok    compressed store reads correctly
+  ok    mappable store opens
+  ok    mapped store reports mapped, 768.0 MB of chunk data borrowed
+  ok    1 MB read through the mapping is byte-identical to the heap store
+  ok    40 scattered 64 KB reads all byte-exact through the map
+  ok    a mapped store is still writable
+  ok    the edit reads back from the mapped store
+  ok    untouched data is still exact after editing a mapped store
+
+   resident after open:
+     compressed store :    777.6 MB   (open 4118 ms)
+     mapped store     :      9.8 MB   (open 15 ms)
+     payload          :    192.0 MB
+  ok    mapped open is at least 2x lighter (9.8 MB vs 777.6 MB, 79.0x)
+  ok    mapped open is faster (15 ms vs 4118 ms) - no decompress, no copy
+  ok    gn_verify_chunks accepts an intact mapped store
+  ok    a compressed store reports no separate bulk (checked at open)
+  ok    gn_verify_chunks catches a single flipped bit in the bulk
+  ok    a mapped store with corrupt bulk still OPENS (the documented gap)
+
+OUT-OF-CORE: ALL PASS (0 failures)
+### oocore -> exit 0
+
+==================================================================
+### ab
+==================================================================
+############ A/B: original tree vs persistence tree ############
+
+== build original ==
+   ok
+== build current ==
+   ok
+
+=================== gitcmp ===================
+  *** DIFFERENCES ***
+2c2
+< Genna after 100 commits: +0.036 MB tree nodes for full version history
+---
+> Genna after 100 commits: +0.083 MB tree nodes for full version history
+4c4
+<   total Genna footprint: 4.04 MB (store 4.01 + history 0.036)
+---
+>   total Genna footprint: 4.09 MB (store 4.01 + history 0.083)
+  --- timing lines (informational, vary per run) ---
+    orig:   time: 0.7 ms (0.0072 ms/commit)   ||   new:   time: 0.7 ms (0.0074 ms/commit)
+    orig:   read OLDEST version (full 8.2 MB): 13.492 ms each   ||   new:   read OLDEST version (full 8.2 MB): 13.016 ms each
+    orig:   read a 20KB slice of oldest version: 0.0243 ms each   ||   new:   read a 20KB slice of oldest version: 0.0166 ms each
+
+=================== realbench ===================
+  *** DIFFERENCES ***
+4c4
+<   bytes written (new tree nodes): 0.036 MB
+---
+>   bytes written (new tree nodes): 0.084 MB
+  --- timing lines (informational, vary per run) ---
+    orig:   time: 0.8 ms   ||   new:   time: 0.8 ms
+
+=================== rsynccmp ===================
+  *** DIFFERENCES ***
+5c5
+<   rsync sent:      335,439 bytes (measured, real rsync 3.2.7)
+---
+>   rsync sent:      335,439 bytes (documented, real rsync 3.2.7)
+  --- timing lines (informational, vary per run) ---
+
+### ab -> exit 0
+
+==================================================================
+### bench
+==================================================================
+############ TOOL VERSIONS (documented -> measured here) ############
+  git    2.43        -> 2.55.0
+  rsync  3.2.7       -> 3.4.4
+  ffmpeg (unstated)  -> 9.0
+
+############ BUILD ############
+  ok
+
+############ 1. vs MosaicML MDS - WikiText-2, mutate with history ############
+  documented: 2,755x less written, 119x faster
+WikiText-2: 10.4 MB, 36718 samples (same split as MDS)
+
+=== GENNA: 100 mutate-with-history edits on WikiText-2 ===
+  time: 0.9 ms
+  bytes written (new tree nodes): 0.084 MB
+  versions kept: 101 (all roll back for free)
+  v0 byte-exact after 100 edits: YES
+  latest version reads: OK (10921786 bytes)
+
+  NOTE: the MDS side is a Python harness (mosaicml-streaming) that is NOT
+        in this repo, so only Genna's side is re-measured above. The
+        2,755x ratio is therefore NOT re-verified here.
+
+############ 2. vs git - Redis source, 100 commits ############
+  documented: 60x less written/edit, 91x faster old-version read
+Genna initial store of 8.2 MB codebase: 4.01 MB resident (dict+chunks)
+Genna after 100 commits: +0.083 MB tree nodes for full version history
+  time: 0.7 ms (0.0073 ms/commit)
+  versions kept: 101
+  total Genna footprint: 4.09 MB (store 4.01 + history 0.083)
+  v0 byte-exact: YES
+
+  read OLDEST version (full 8.2 MB): 13.022 ms each
+  read a 20KB slice of oldest version: 0.0166 ms each
+
+  --- real git, same workload (100 commits, one appended line each) ---
+  .git after packed baseline: 2205205 bytes
+  .git after 100 commits:     3779438 bytes
+  git WROTE for 100 commits:  1574233 bytes  (1537.3 KB, 15742 bytes/commit)
+  git commit time: 17441 ms total (174.41 ms/commit)
+  genna wrote for 100 commits: 87031 bytes (870 bytes/commit)
+  -> bytes written: genna 18.1x less than git   [documented 60x]
+  git show <oldest>:src/acl.c -> 39.8064 ms each (20 runs)
+  genna 20KB slice of oldest version -> 0.0166 ms each
+  -> old-version read: genna 2398.0x faster   [documented 91x]
+
+############ 3. vs rsync - WikiText-2, 100 scattered edits ############
+  documented: 10x less over the wire (rsync 3.2.7 sent 335,439 bytes)
+=== Genna-Net vs rsync: 100 scattered edits on WikiText-2 ===
+  samples: 36718 | chunks changed: 96 | payload: 34246 bytes (33.4 KB)
+  receiver reconstruct: BYTE-EXACT
+
+  rsync sent:      335,439 bytes (documented, real rsync 3.2.7)
+  Genna-Net sent:  34246 bytes
+  -> Genna-Net 9.8x less
+  (wrote original.bin 10940747 B and edited.bin 10909341 B to C:/msys64/tmp/gn_bench for the real-rsync head-to-head)
+
+  --- real rsync 3.4.4, same change ---
+    Literal data: 328,730 bytes
+    Matched data: 10,580,611 bytes
+    Total bytes sent: 342,050
+    rsync sent 342050 bytes | Genna-Net sent 34246 bytes
+  -> over the wire: Genna-Net 10.0x less   [documented 10x]
+
+############ 4. vs ffmpeg - H.264 structural cuts ############
+  documented: ~110,000x on structural cuts, byte-exact
+== ingest ==
+  10.2 MB -> 2700 frames in 10 ms (1048 MB/s)
+  language 2700 unique frames | tree leaves 90 depth 8 | RSS 25 MB
+  90 IDR cut points
+== 1000 timeline operations ==
+  ripple cut   x619   mean 0.0008 ms
+  copy/paste   x203   mean 0.0013 ms   (clip length irrelevant)
+  scrub 4MB    x178   mean 0.1197 ms   (random version, random offset)
+  rejected (not frame-aligned): 0
+  [cut-point re-derivation, not part of the edit: 0.0125 ms/op]
+== final state ==
+  timeline 12.8 MB, 3390 frames, 823 versions
+  tree leaves 113 depth 21 | 8810 nodes = 0.5 MB
+  RSS 35 MB for a 12.8 MB timeline built from 20.4 MB of source
+  materialize whole timeline: 2 ms (6259 MB/s)
+  v0 after 1000 ops: BYTE-EXACT
+
+  --- real ffmpeg 9.0, one equivalent structural cut (-c copy) ---
+    run 1: 103.74 ms
+    run 2: 105.10 ms
+    run 3: 102.82 ms
+    ffmpeg mean: 103.89 ms   |   genna ripple cut mean: 0.0008 ms
+  -> structural cut: genna 129862x faster   [documented ~110,000x]
+
+############ BENCHMARKS DONE ############
+### bench -> exit 0
+
+==================================================================
+### python
+==================================================================
+interpreter: /c/Users/P/AppData/Local/Microsoft/WindowsApps/python.exe
+   C:\Users\P\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\python.exe
+   version 3.12.10
+   pyarrow      present
+   numpy        present
+   onnxruntime  present
+   tokenizers   present
+
+==================================================================
+### tests/test_core.py
+==================================================================
+=== genna python bindings: correctness ===
+
+-- create / read round trip --
+  ok    a full read returns actual bytes
+  ok    full read is byte-identical to input
+  ok    len() == 114
+  ok    mid-range read matches the slice
+  ok    over-long read clamps, no error
+  ok    read past end returns empty
+  ok    name round-trips
+
+-- binary safety (this is where FFI usually breaks) --
+  ok    all 256 byte values survive (10240 bytes)
+  ok    embedded NUL bytes are preserved
+  ok    UTF-8 payload is byte-identical
+
+-- a payload bigger than any 32-bit truncation would survive --
+  ok    length 3,000,000 preserved exactly
+  ok    3 MB payload byte-identical
+  ok    slice deep inside matches
+
+-- versioned edits and time travel --
+  ok    insert lands in the right place
+  ok    delete restores the original bytes
+  ok    replace
+  ok    4 versions recorded, got 4
+  ok    v0 still byte-exact after 3 edits
+  ok    versions[-1] is the head
+  ok    each version reports its own length [37, 45, 37, 37] == [37, 45, 37, 37]
+  ok    out-of-range version raises IndexError
+
+-- rollback keeps history --
+  ok    baseline read is non-empty (no vacuous comparison below)
+  ok    content changed
+  ok    rollback(0) restores v0 byte-exactly
+  ok    rollback appended a version, destroyed none
+  ok    the intermediate version is still there
+
+-- differential: 400 random splices vs a Python shadow buffer --
+  ok    400 random splices matched the shadow byte-for-byte
+  ok    final length agrees with the shadow
+
+-- search --
+  ok    'engine' found 3x across objects (got 3)
+  ok    hits are (name, offset) pairs
+  ok    absent needle returns []
+  ok    every reported offset really points at the needle
+
+-- engine container API --
+  ok    len(engine) == 2 objects
+  ok    __contains__ works
+  ok    missing name is not 'in' engine
+  ok    engine['name'] indexes
+  ok    iteration yields objects
+  ok    missing object raises KeyError
+
+-- errors are raised, not swallowed --
+  ok    editing past the end raises GennaError
+  ok    over-long object name raises ValueError
+  ok    wrong insert type raises TypeError
+  ok    using a closed engine raises GennaError
+
+-- persistence through the bindings --
+  ok    save() wrote the store file
+  ok    WAL is armed after save()
+  ok    WAL reports healthy
+  ok    engine knows its store path
+  ok    all 26 versions came back
+  ok    every one of 26 versions is byte-identical after reopen
+
+-- Dataset: the record-level API --
+  ok    5 records ingested (got 5)
+  ok    JSON parses
+  ok    content() reads the text field
+  ok    dedup left 3 unique records (got 3)
+  ok    step reports 2 removed (got 2)
+  ok    dedup created versioned edits
+  ok    filter_length dropped the short record (got 2)
+  ok    rollback restored the original length
+  ok    rollback is byte-exact
+  ok    all 5 records are back
+
+BINDINGS: ALL PASS (0 failures / 58 checks)
+
+==================================================================
+### tests/test_threads.py
+==================================================================
+=== genna bindings: thread safety ===
+
+-- 8 threads editing separate objects, 60 edits each --
+  ok    no thread raised ([])
+  ok    all 8 objects have exactly the content their thread wrote (bad: [])
+  ok    each object has exactly 61 versions
+
+-- readers racing a writer on the same object --
+  ok    no torn reads observed while writing ([])
+  ok    121 versions after 120 edits (got 121)
+
+THREADS: ALL PASS (0 failures)
+
+==================================================================
+### tests/test_table.py
+==================================================================
+=== genna columnar tables ===
+
+-- ingest: 20,000 rows x 5 columns --
+  ok    20,000 rows ingested
+  ok    schema round-trips: ['id', 'label', 'text', 'score', 'source']
+  ok    to_arrow returns every row
+  ok    column values are identical after a round trip
+  ok    float column is exact after a round trip
+   store: 140,544 bytes
+
+-- cost of a column-scoped edit (relabel one column) --
+  ok    relabelled 10,000 values
+   versions per column after relabel: {'id': 1, 'label': 2, 'text': 1, 'score': 1, 'source': 1}
+  ok    label column has 2 versions
+  ok    the other 4 columns were NOT touched (1 version each)
+  ok    row-major edit kept all 20,000 records
+   row-major replaced 10,000 values across 10,000 splices
+   columnar : 140,544 -> 174,609  (+34,065 B)
+   row-major: 163,025 -> 959,807  (+796,782 B)
+  ok    column-scoped relabel costs less than row-major (34,065 vs 796,782 B, 23.4x)
+
+-- drop a label class (deletion vector, not a rewrite) --
+  ok    dropped 5,000 rows of class 'bird'
+  ok    15,000 live rows remain
+  ok    NO data column was rewritten - only the validity vector
+   store 174,609 -> 174,671 (+62 B for 5,000 deletions)
+  ok    deleting 5,000 rows cost fewer than 5,000 bytes
+  ok    to_arrow honours the deletion vector
+  ok    no 'bird' rows survive materialization
+
+-- dedup on a single column --
+  ok    dedup on 'source' left 50 rows (50 distinct), removed 1950
+
+-- compact reclaims tombstoned rows --
+  ok    compact removed 5,000 tombstoned rows
+  ok    physical rows 20,000 -> 15,000
+  ok    content unchanged by compaction
+
+-- save / reopen --
+  ok    schema survives reopen
+  ok    every cell identical after save -> reopen
+
+TABLE: ALL PASS (0 failures / 22 checks)
+
+==================================================================
+### tests/test_query.py
+==================================================================
+=== query surface ===
+
+-- 'which versions touched this byte range?' --
+  ok    range_history matches brute force for record 137: [] == []
+  ok    NO false negatives across 58 records: every real change is reported (6 true changes)
+   false positives: 42 extra candidates over 58 records (6 true changes) - chunk-granularity, filter then confirm
+  ok    every recorded edit appears in its record's history
+  ok    record 0 was never edited and reports no history
+  ok    range_changed never reports 'unchanged' for a range that differs (conservative in the safe direction)
+
+-- cost: pointer walk vs materialize-and-compare --
+   range_history      :      3.3 us
+   materialize + diff :    108.3 us
+  ok    structural query is 33.2x faster than reading every version
+
+-- table diff: rows added / removed / cells changed --
+  ok    diff reports 167 rows removed (dropped 167)
+  ok    diff reports 0 rows added
+  ok    the removed rows are exactly the 'cat' rows
+  ok    diff by key lists 167 removed ids
+  ok    diff(v, v) reports no change at all
+
+QUERY: ALL PASS (0 failures / 11 checks)
+
+==================================================================
+### tests/test_lazy.py
+==================================================================
+=== deferred transforms (lazy tags) ===
+
+-- correctness: lazy must equal eager, exactly --
+  ok    lazy relabel produces byte-identical values to the eager rewrite
+  ok    one pending op recorded
+  ok    add_range applies to exactly rows [5000,15000)
+  ok    range add is one op
+  ok    a second op composes on the first
+  ok    two pending ops
+
+-- cost of the write --
+   eager relabel : 53,455 -> 84,118  (+30,663 B)
+   lazy  relabel : 53,472 -> 53,881  (+409 B, op itself 56 B)
+  ok    lazy write is smaller: 409 vs 30,663 B (75.0x)
+  ok    the op itself is 56 bytes, independent of the 10,000 rows it affects
+
+-- does the write scale with rows affected? --
+    1,000 rows -> +178 B
+   10,000 rows -> +277 B
+   20,000 rows -> +606 B
+  ok    write cost is flat across 1k..20k rows (spread 428 B) - O(1) in rows affected
+
+-- what the deferral costs: read amplification --
+   read with 0 pending ops :    1.27 ms
+   read with 16 pending ops:    3.66 ms  (2.9x)
+  ok    reads do get slower with pending ops - this is the trade, not free
+   after compact_column()  :    0.69 ms (16 ops folded)
+  ok    compact folded all 16 ops
+  ok    compaction restores read speed
+  ok    no ops pending after compaction
+
+-- pending ops survive save/reopen --
+  ok    deferred label remap survives reopen
+  ok    deferred range add survives reopen
+  ok    the op log came back too
+
+LAZY: ALL PASS (0 failures / 16 checks)
+
+==================================================================
+### tests/test_sketch.py
+==================================================================
+=== versioned sketches ===
+
+-- HLL accuracy vs exact (1 KB of registers) --
+   true     100  est     104  err  4.00%
+   true   1,000  est   1,020  err  2.00%
+   true  10,000  est   9,799  err  2.01%
+   true 100,000  est  99,940  err  0.06%
+  ok    worst relative error 4.00% is within the ~3-5% expected at p=10
+  ok    merge is a union: 7,432 vs true 7,500 (0.9%) - mergeable, so it composes
+
+-- distinct at any historical version --
+  ok    v1: estimated 406 distinct labels vs exact 400
+  ok    v2 after collapsing 200 labels: estimated 204 vs exact 201
+  ok    cardinality dropped across the edit (406 -> 204)
+  ok    the older version's sketch is unchanged by the later edit
+
+-- lookup vs recompute --
+   sketch lookup :   0.120 ms
+   exact rescan  :   5.059 ms
+  ok    lookup is 42x cheaper than rescanning the historical version
+
+-- what the sketch costs on write --
+   commit without sketch:    0.05 ms
+   commit with sketch   :   26.03 ms
+  ok    the sketch is not free at write time (499.9x) - it moves cost from read to write
+
+SKETCH: ALL PASS (0 failures / 8 checks)
+
+==================================================================
+### tests/test_semantic.py
+==================================================================
+=== semantic vs lexical near-dedup ===
+
+loading model (first run downloads ~90 MB)...
+model: sentence-transformers/all-MiniLM-L6-v2
+
+-- paraphrases (same meaning, different words) --
+   semantic   lexical   pair
+      0.559     0.333   'The cat sat on the mat.'
+      0.587     0.039   'How do I reset my password?'
+      0.770     0.195   'The film was terrible and I want my money ba'
+      0.652     0.001   'Python is a programming language used for ma'
+
+-- surface variants (typos/spacing: both should catch) --
+      0.990     0.916   'The quick brown fox jumps over the lazy dog.'
+      0.837     0.834   'Deep learning models require large datasets.'
+
+-- distinct (neither may catch) --
+     -0.003     0.020   'The cat sat on the mat.'
+      0.113    -0.077   'How do I reset my password?'
+     -0.032     0.085   'Python is a programming language used for ma'
+
+-- separability (does ANY threshold work?) --
+  semantic: worst duplicate 0.559 vs best non-duplicate 0.113  -> margin +0.445
+  lexical:  worst duplicate 0.001 vs best non-duplicate 0.085  -> margin -0.084
+  ok    semantic IS separable: every duplicate scores above every non-duplicate (margin 0.445)
+  ok    lexical is NOT separable at any threshold (margin -0.084) - so this is a real improvement, not a tuning artifact
+  any threshold in (0.113, 0.559) separates them; using 0.34 below
+  ok    at 0.34, semantic catches all 4 paraphrases
+  ok    at 0.34, semantic flags none of the unrelated pairs
+
+-- end to end: Dataset.near_dedup on a paraphrase corpus --
+  ok    exact dedup removes nothing here (all records differ): 11
+  <Step near_dedup: 11->7 records, v0->v4 (4 edits)>
+  ok    near_dedup removed exactly the 4 paraphrase partners (removed 4)
+  ok    7 records left, unrelated ones untouched
+  ok    near_dedup is a reversible versioned edit
+
+SEMANTIC: ALL PASS (0 failures)
+
+### PYTHON SUITE: 7 run, 0 failed, 0 SKIPPED
+### python -> exit 0
+
+==================================================================
+### FINAL: 0 script(s) reported failure
+### logs: /d/website/devops/GENNA/test-logs
+Genna test logs
+generated: 2026-08-13T00:30:11Z
+host:      MSYS_NT-10.0-26200 x86_64
+compiler:  gcc.exe (Rev3, Built by MSYS2 project) 16.2.0
+git/rsync/ffmpeg: 2.55.0 / 3.4.4 / 9.0
+
+result: 0 script(s) reported failure
+
+ab.log               1418 bytes   
+bench.log            3911 bytes   BYTE-EXACT
+concurrent.log       2216 bytes   ALL PASS
+corruptfz.log        1141 bytes   0 seed(s) with problems
+curate.log           4815 bytes   
+fuzz12.log            355 bytes   12 passed, 0 failed
+leak.log             1785 bytes   CLEAN
+oocore.log           1504 bytes   ALL PASS
+python.log          12165 bytes   7 run, 0 failed, 0 SKIPPED
+sanitized.log       10430 bytes   5 passed, 0 failed
+suite.log            6590 bytes   5 passed, 0 failed
+walfix.log           1252 bytes   WALFIX VERDICT: PASS
+==================================================================
