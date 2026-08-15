@@ -197,8 +197,26 @@ pip install .    # builds and installs the Python package
 
 The full gate — sanitizers, fuzz campaigns, crash recovery, the benchmarks
 above — is `bash tools/run_all.sh`, which writes `test-logs/`. It is MSYS2/
-Windows-specific; `make ci` is the portable subset that CI runs on Linux and
-macOS.
+Windows-specific; `make ci` is the portable subset.
+
+### What has actually been verified on which platform
+
+Every number in this README and in [`TEST_REPORT.md`](TEST_REPORT.md) was
+measured on **one Windows machine**. State of cross-platform evidence as of
+15 August 2026:
+
+| | status |
+|---|---|
+| Python suite, Linux + macOS + Windows, 3.9 and 3.12 | **passing in CI** |
+| C engine, Linux | **passing in CI** |
+| C engine, macOS | **one test still failing** (`oocore_test`) |
+| Every benchmark number quoted above | **Windows only, not independently reproduced** |
+
+Until the last two lines change, treat the benchmark figures as measurements
+from a single machine rather than as cross-platform results. The CI workflow
+that establishes any of this had **never executed on a single commit** before
+15 August 2026 — it triggered on a branch that does not exist in this
+repository. See error −2 in [`TEST_REPORT.md`](TEST_REPORT.md).
 
 ---
 
