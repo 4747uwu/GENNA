@@ -31,6 +31,23 @@ static size_t rss_bytes(void) {
         return (size_t)pmc.WorkingSetSize;
     return 0;
 }
+#elif defined(__APPLE__)
+  /* macOS has no /proc. The old code fopen'd /proc/self/statm, got NULL, and
+   * returned 0 -- so every resident measurement on this platform was zero,
+   * silently. That is the house bug in miniature: a measurement that cannot
+   * be taken returned a number that looks like one, and the mmap claim
+   * ("0.7 MB resident vs 32.6 MB") has therefore never been measured on a
+   * Mac at all. */
+  #include <unistd.h>
+  #include <mach/mach.h>
+static size_t rss_bytes(void) {
+    mach_task_basic_info_data_t info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                  (task_info_t)&info, &count) == KERN_SUCCESS)
+        return (size_t)info.resident_size;
+    return 0;
+}
 #else
   #include <unistd.h>
 static size_t rss_bytes(void) {
@@ -42,6 +59,12 @@ static size_t rss_bytes(void) {
     return (size_t)res * (size_t)sysconf(_SC_PAGESIZE);
 }
 #endif
+
+/* rss_bytes() returning 0 always means "could not measure", never "measured
+ * zero" -- a live process has resident pages by definition. The assertions
+ * below check for it explicitly rather than comparing zeros, because an
+ * unmeasurable platform producing "0.0 MB vs 0.0 MB" is how a broken probe
+ * disguises itself as a broken engine. */
 
 static int fails = 0;
 #define CHECK(c, ...) do { \
@@ -205,6 +228,10 @@ int main(int argc, char **argv) {
            rss_m / 1048576.0, t_open_m);
     printf("     payload          : %8.1f MB\n", n / 1048576.0);
 
+    CHECK(rss_c > 0 && rss_m > 0,
+          "resident memory is actually measurable here (compressed %zu B, "
+          "mapped %zu B) - a 0 means the probe could not read RSS, and "
+          "comparing zeros would be meaningless either way", rss_c, rss_m);
     CHECK(rss_m * 2 < rss_c,
           "mapped open is at least 2x lighter (%.1f MB vs %.1f MB, %.1fx)",
           rss_m / 1048576.0, rss_c / 1048576.0,
