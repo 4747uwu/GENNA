@@ -72,6 +72,24 @@ fuzz: $(ENGINE)
 CI_DEFS ?= -DGN_HAVE_ZLIB -DGN_HAVE_ZSTD
 CI_LIBS ?= -lz -lzstd
 CI_ENGINE = $(ENGINE) src/genna_bin.c src/genna_merge.c
+
+# Homebrew is not on clang's default search path. On Apple silicon it installs
+# under /opt/homebrew, and macOS ships zlib in the SDK but not zstd -- so
+# `#include <zlib.h>` compiles bare and `#include <zstd.h>` does not, which is
+# exactly what the CI probes measured: mac/zstd-header-plain red,
+# mac/zstd-header-with-brew-prefix green, with zstd definitely installed.
+#
+# Guarded on Darwin and on brew existing, so Linux and MSYS2 are untouched and
+# a Mac without Homebrew degrades to the same error it had before rather than
+# to a confusing one about a missing brew.
+ifeq ($(shell uname -s 2>/dev/null),Darwin)
+BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
+ifneq ($(BREW_PREFIX),)
+CI_DEFS += -I$(BREW_PREFIX)/include
+CI_LIBS += -L$(BREW_PREFIX)/lib
+endif
+endif
+
 CI_CFLAGS = $(CFLAGS) $(CI_DEFS) -Wall -Wextra
 
 .PHONY: ci
