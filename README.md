@@ -326,15 +326,24 @@ Windows-specific; `make ci` is the portable subset.
 
 The **correctness** suites pass on Linux, macOS and Windows, on machines
 nobody here owns —
-[run 31888551742](https://github.com/4747uwu/GENNA/actions/runs/31888551742),
-8 of 8 jobs green:
+[run 31900068263](https://github.com/4747uwu/GENNA/actions/runs/31900068263),
+8 of 8 jobs green, commit `b993f24`:
 
 | | status |
 |---|---|
 | C engine — Linux, macOS (incl. ASan + UBSan) | **passing** |
 | Python suite — Linux, macOS, Windows × 3.9, 3.12 | **passing** |
-| `pip install` then run the example, from outside the repo | **passing** |
+| Build a wheel, install *that*, run the example from outside the repo | **passing** |
 | Every **benchmark number** quoted above | **Windows only, not independently reproduced** |
+
+**One caveat that belongs here rather than buried.** CI installs zlib and
+zstd on Linux and macOS but not on Windows, so the Windows build has no
+compression — and a store written by a compressed build **cannot be opened by
+a build without that codec.** Genna says so plainly when it happens (it names
+the codec rather than calling your file damaged), but until Windows CI gets
+zstd, stores are not freely portable between platform builds of the same
+release. If you move stores between machines, check
+`genna.open_store` succeeds on both, or save with `raw=True`.
 
 That last row is the important one. CI proves the engine is *correct*
 elsewhere; it does not re-measure the ratios. Treat every performance figure
