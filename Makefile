@@ -75,7 +75,13 @@ CI_ENGINE = $(ENGINE) src/genna_bin.c src/genna_merge.c
 CI_CFLAGS = $(CFLAGS) $(CI_DEFS) -Wall -Wextra
 
 .PHONY: ci
-ci:
+ci: ci-build ci-run
+
+# Split so a failure names itself. As one recipe, any of 8 compiles and 9
+# test runs failing printed only "Build and test failed", and GitHub
+# returns 403 for workflow logs without a token -- so on macOS there was
+# no public signal saying WHICH of seventeen commands broke.
+ci-build:
 	@echo "== $$($(CC) --version | head -1) =="
 	$(CC) $(CI_CFLAGS) tests/test_genna.c   $(ENGINE)              -o test_genna   $(CI_LIBS) $(LM)
 	$(CC) $(CI_CFLAGS) tests/edge.c         $(ENGINE)              -o edge         $(CI_LIBS) $(LM)
@@ -85,6 +91,8 @@ ci:
 	$(CC) $(CI_CFLAGS) tests/merge_test.c   $(ENGINE) src/genna_merge.c -o merge_test $(CI_LIBS) $(LM)
 	$(CC) $(CI_CFLAGS) -DGN_NODE_AGG tests/agg_test.c $(ENGINE) src/genna_bin.c src/genna_agg.c -o agg_test $(CI_LIBS) $(LM)
 	$(CC) $(CI_CFLAGS) tests/oocore_test.c  $(CI_ENGINE) src/genna_agg.c -DGN_NODE_AGG -o oocore_test $(CI_LIBS) $(LM)
+
+ci-run:
 	./test_genna
 	./edge
 	./fuzz_test

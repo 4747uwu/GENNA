@@ -32,8 +32,41 @@ jobs:
             brew install zstd || true
           fi
 
-      - name: Build and test
-        run: make ci CC=cc
+      # One step per binary, for the same reason the Python suite is split:
+      # GitHub 403s on workflow logs without a token, so the only public
+      # signal is the step NAME. As a single `make ci`, a failure in any of
+      # 8 compiles and 9 runs printed "Build and test failed" and nothing
+      # more -- which is why macos-latest has been red and undiagnosed.
+      - name: c/compile
+        run: make ci-build CC=cc
+
+      - name: c/test_genna
+        if: always()
+        run: ./test_genna
+      - name: c/edge
+        if: always()
+        run: ./edge
+      - name: c/fuzz_test
+        if: always()
+        run: ./fuzz_test
+      - name: c/merge_test
+        if: always()
+        run: ./merge_test
+      - name: c/agg_test
+        if: always()
+        run: ./agg_test 4
+      - name: c/persist_write
+        if: always()
+        run: ./persist_test write sample_ml_dataset.jsonl gn_store.gn gn_ref.bin
+      - name: c/persist_verify
+        if: always()
+        run: ./persist_test verify gn_store.gn gn_ref.bin
+      - name: c/crash_test
+        if: always()
+        run: ./crash_test parent gn_crash.gn gn_witness.txt sample_ml_dataset.jsonl 3 200
+      - name: c/oocore_test
+        if: always()
+        run: ./oocore_test . 8 keep
 
       - name: Build under ASan + UBSan
         run: |
