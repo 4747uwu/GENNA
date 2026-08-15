@@ -181,6 +181,10 @@ jobs:
         if: always()
         working-directory: python
         run: python tests/test_demo.py
+      - name: t/ci-wiring
+        if: always()
+        working-directory: python
+        run: python tests/test_ci_wiring.py
 
       - name: probe-selftest
         if: always()
