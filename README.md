@@ -201,22 +201,31 @@ Windows-specific; `make ci` is the portable subset.
 
 ### What has actually been verified on which platform
 
-Every number in this README and in [`TEST_REPORT.md`](TEST_REPORT.md) was
-measured on **one Windows machine**. State of cross-platform evidence as of
-15 August 2026:
+The **correctness** suites pass on Linux, macOS and Windows, on machines
+nobody here owns —
+[run 31888551742](https://github.com/4747uwu/GENNA/actions/runs/31888551742),
+8 of 8 jobs green, commit `cfd983a`:
 
 | | status |
 |---|---|
-| Python suite, Linux + macOS + Windows, 3.9 and 3.12 | **passing in CI** |
-| C engine, Linux | **passing in CI** |
-| C engine, macOS | **one test still failing** (`oocore_test`) |
-| Every benchmark number quoted above | **Windows only, not independently reproduced** |
+| C engine — Linux, macOS (incl. ASan + UBSan) | **passing** |
+| Python suite — Linux, macOS, Windows × 3.9, 3.12 | **passing** |
+| `pip install .` from source on all three | **passing** |
+| Every **benchmark number** quoted above | **Windows only, not independently reproduced** |
 
-Until the last two lines change, treat the benchmark figures as measurements
-from a single machine rather than as cross-platform results. The CI workflow
-that establishes any of this had **never executed on a single commit** before
-15 August 2026 — it triggered on a branch that does not exist in this
-repository. See error −2 in [`TEST_REPORT.md`](TEST_REPORT.md).
+That last row is the important one. CI proves the engine is *correct*
+elsewhere; it does not re-measure the ratios. Treat every performance figure
+in this README as a measurement from a single Windows machine until it is
+reproduced on yours.
+
+Worth knowing while reading any of it: this workflow had **never executed on
+a single commit** before 15 August 2026 — it triggered on `main` in a
+repository whose default branch is `master`, so the project presented as
+continuously tested for its entire public life while running nothing. The
+first real run went red on 7 of 8 jobs. See error −2 in
+[`TEST_REPORT.md`](TEST_REPORT.md), and
+[`python/tests/test_ci_wiring.py`](python/tests/test_ci_wiring.py), which now
+fails if a workflow names a branch that does not exist.
 
 ---
 
