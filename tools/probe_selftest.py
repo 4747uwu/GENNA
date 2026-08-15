@@ -35,9 +35,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# setup.py calls setup() at import. Neuter it so we can import the functions.
-import setuptools
-setuptools.setup = lambda **kw: None
+# Import the probe functions out of setup.py WITHOUT needing setuptools.
+#
+# Two problems to dodge. setup.py calls setup() at import time, and it imports
+# setuptools -- which Python 3.12+ no longer installs by default, so on a
+# fresh CI interpreter `import setuptools` is an ImportError before this test
+# has done anything. Stub what setup.py imports; none of it is ever called
+# here, we only want _probe_link/_PROBE_CALL/_compiler.
+import types
+
+if "setuptools" not in sys.modules:
+    _st = types.ModuleType("setuptools")
+    _st.setup = lambda **kw: None
+
+    class _Cmd:                       # stand-in for build_py / bdist_wheel
+        def __init__(self, *a, **k):
+            pass
+
+    _cmd = types.ModuleType("setuptools.command")
+    for _name in ("build_py", "bdist_wheel"):
+        _m = types.ModuleType(f"setuptools.command.{_name}")
+        setattr(_m, _name, _Cmd)
+        setattr(_cmd, _name, _m)
+        sys.modules[f"setuptools.command.{_name}"] = _m
+    _st.command = _cmd
+    sys.modules["setuptools"] = _st
+    sys.modules["setuptools.command"] = _cmd
+else:
+    import setuptools
+    setuptools.setup = lambda **kw: None
 
 sys.path.insert(0, str(ROOT))
 import importlib.util
@@ -73,13 +99,24 @@ def build_fake_lib(td: Path, cc: str, pic: bool, env) -> bool:
     constant would not reproduce the failure.
     """
     (td / "faketest.h").write_text("int fake_symbol(void);\n")
+    # A GLOBAL array whose address is stored in a global pointer. Under
+    # -fno-pic that pointer initialiser needs an absolute relocation
+    # (R_X86_64_32S / R_X86_64_PC32), which is exactly what cannot appear in
+    # a shared object. A `static` array touched by a leaf function is not
+    # enough: modern GCC defaults to -fPIE, so it stays PC-relative, links
+    # fine, and the fixture proves nothing.
     (td / "faketest.c").write_text(
-        "static int table[64];\n"
-        "int fake_symbol(void){ table[3] = 7; return table[3]; }\n"
+        "int fake_table[64];\n"
+        "int *fake_ptr = fake_table;\n"
+        "int fake_symbol(void){ fake_ptr[3] = 7; return fake_table[3]; }\n"
     )
     cmd = [cc, "-c", str(td / "faketest.c"), "-o", str(td / "faketest.o")]
     if pic:
         cmd.insert(1, "-fPIC")
+    else:
+        # -fPIE is the default on every distro that matters, so non-PIC has
+        # to be asked for explicitly or this fixture is just a PIC one.
+        cmd[1:1] = ["-fno-pic", "-fno-PIE"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env)
     if r.returncode != 0:
         print(f"        (cc failed: {r.stderr.strip()[:160]})")
@@ -131,8 +168,13 @@ def main() -> int:
 
             _setup._PROBE_CALL["faketest.h"] = \
                 "int probe(void){ return fake_symbol(); }"
-            static = ["-L" + str(td), "-Wl,-Bstatic", "-lfaketest",
-                      "-Wl,-Bdynamic"]
+            # Apple's ld has no -Bstatic; hand it the archive by path, the
+            # same way setup.py._static_variants does on Darwin.
+            if sys.platform == "darwin":
+                static = [str(td / "libfaketest.a")]
+            else:
+                static = ["-L" + str(td), "-Wl,-Bstatic", "-lfaketest",
+                          "-Wl,-Bdynamic"]
             got = _setup._probe_link(cc, "faketest.h", ["-I" + str(td)] + static,
                                      env)
 

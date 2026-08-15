@@ -170,12 +170,37 @@ def _compression_flags(cc: str, env) -> list:
         return []
     found = []
     for header, lib in (("zstd.h", "zstd"), ("zlib.h", "z")):
-        static = ["-Wl,-Bstatic", "-l" + lib, "-Wl,-Bdynamic"]
-        if _probe_link(cc, header, static, env):
-            found.append((header, lib, static, "static"))
-        elif _probe_link(cc, header, ["-l" + lib], env):
-            found.append((header, lib, ["-l" + lib], "dynamic"))
+        chosen = None
+        for flags, how in _static_variants(lib):
+            if _probe_link(cc, header, flags, env):
+                chosen = (header, lib, flags, how)
+                break
+        if chosen is None and _probe_link(cc, header, ["-l" + lib], env):
+            chosen = (header, lib, ["-l" + lib], "dynamic")
+        if chosen:
+            found.append(chosen)
     return found
+
+
+def _static_variants(lib: str) -> list:
+    """Ways to ask for a STATIC link, in order, per linker.
+
+    `-Wl,-Bstatic` is GNU ld syntax. Apple's ld does not have it and errors
+    out with `unknown option`, so on macOS that probe fails for a reason that
+    has nothing to do with whether a static libzstd exists -- and the build
+    silently falls through to dynamic, producing a .dylib that needs
+    Homebrew's libzstd on every machine that loads it. That is the same class
+    of bug as the MSYS2 one, just on a different platform. On Darwin the
+    portable move is to hand the linker the archive by absolute path.
+    """
+    if sys.platform == "darwin":
+        out = []
+        for prefix in ("/opt/homebrew", "/usr/local", "/opt/local", "/usr"):
+            arch = Path(prefix) / "lib" / f"lib{lib}.a"
+            if arch.exists():
+                out.append(([str(arch)], f"static:{arch}"))
+        return out
+    return [(["-Wl,-Bstatic", "-l" + lib, "-Wl,-Bdynamic"], "static")]
 
 
 def build_native(dest_dir: Path) -> Path:
