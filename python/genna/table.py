@@ -405,10 +405,23 @@ class Table:
                     seg = vals[lo:hi]
                     for old, new in m.items():
                         seg[seg == old] = new
-            return pa.array(vals.astype(
-                np.dtype(arr.type.to_pandas_dtype())
-                if hasattr(arr.type, "to_pandas_dtype") else vals.dtype),
-                type=arr.type)
+            # Cast back to the column's own width. Deliberately NOT via
+            # arr.type.to_pandas_dtype(): that pyarrow method imports pandas
+            # internally, and pandas is not a dependency of this package --
+            # pyproject has `dependencies = []` and the `table` extra is
+            # pyarrow+numpy only. It passed on the dev box, which happened to
+            # have pandas installed ambiently, and raised ModuleNotFoundError
+            # on all six CI jobs the moment CI was first allowed to run.
+            #
+            # Asking pyarrow for an empty array of the target type and reading
+            # ITS numpy dtype gets pyarrow's own mapping, with no pandas
+            # anywhere in the call.
+            try:
+                target = pa.array([], type=arr.type).to_numpy(
+                    zero_copy_only=False).dtype
+            except Exception:
+                target = vals.dtype
+            return pa.array(vals.astype(target), type=arr.type)
 
         # non-numeric: only MAP applies, done as one pass over the values
         vals = arr.to_pylist()

@@ -181,6 +181,48 @@ def main():
     check(t_comp < t_dirty, "compaction restores read speed")
     check(t.pending_ops("label") == 0, "no ops pending after compaction")
 
+    # ---- no hidden dependencies -----------------------------------------
+    # This is the check that would have caught the bug that made t/lazy the
+    # only red test in the matrix. `arr.type.to_pandas_dtype()` imports
+    # pandas inside pyarrow; pandas is not declared anywhere in pyproject.
+    # The dev box had it installed ambiently, so the suite was green here and
+    # ModuleNotFoundError on all six CI jobs.
+    #
+    # Setting sys.modules["pandas"] = None makes `import pandas` raise
+    # ImportError, which is the state of every clean install. If the lazy
+    # path ever reaches for pandas again, this fails on the machine that
+    # wrote the regression rather than an hour later in CI.
+    print("\n-- the lazy path must not need pandas --")
+    had_pandas = "pandas" in sys.modules
+    saved = sys.modules.get("pandas")
+    sys.modules["pandas"] = None       # forces ImportError on `import pandas`
+    try:
+        tp = genna.Table.from_arrow(make(400))
+        tp.add_range("score", 0, 200, 5.0)
+        tp.relabel_lazy("label", {"cat": "feline"})
+        got_s = tp.column("score", live_only=False).to_pylist()
+        got_l = tp.column("label", live_only=False).to_pylist()
+        ok = True
+    except ImportError as e:
+        ok = False
+        print(f"        reached for a module that is not a dependency: {e}")
+    finally:
+        if had_pandas:
+            sys.modules["pandas"] = saved
+        else:
+            sys.modules.pop("pandas", None)
+    check(ok, "numeric and remap ops materialize with pandas unimportable")
+    if ok:
+        check(got_s[0] == 5.0 and got_s[300] == 300.0 % 100,
+              "and the range add is still numerically right without pandas")
+        check("feline" in got_l and "cat" not in got_l,
+              "and the remap is still right without pandas")
+        tp.engine.close()
+    # Informational, so it is a print and not a check. `check(x or True, ...)`
+    # can never fail, and a check that cannot fail is the thing this file is
+    # here to stop.
+    print(f"        (pandas ambiently importable on this machine: {had_pandas})")
+
     # ---- persistence -----------------------------------------------------
     print("\n-- pending ops survive save/reopen --")
     t2 = genna.Table.from_arrow(make(500))
