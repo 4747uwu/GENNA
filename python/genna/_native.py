@@ -149,6 +149,7 @@ _SIGS = [
 
     # --- genna_persist.h --------------------------------------------------
     ("gn_save",               c_int,    [c_void_p, c_char_p]),
+    ("gn_save_ex",            c_int,    [c_void_p, c_char_p, c_uint32]),
     ("gn_open",               c_void_p, [c_char_p]),
     ("gn_close",              None,     [c_void_p]),
     ("gn_wal_active",         c_int,    [c_void_p]),

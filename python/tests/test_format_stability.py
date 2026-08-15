@@ -77,7 +77,13 @@ def build_store(path: Path) -> dict:
              "sha256": hashlib.sha256(v.bytes()).hexdigest()}
             for i, v in enumerate(obj.versions)
         ]
-    eng.save(path)
+    # raw=True on purpose. A compressed store can only be opened by a build
+    # that has the same codec, so a compressed fixture tests "did this build
+    # find libzstd" rather than "is the format stable" -- and it failed on
+    # macOS and Windows CI for exactly that reason while passing on Linux.
+    # An uncompressed fixture isolates the format, which is the thing being
+    # pinned.
+    eng.save(path, raw=True)
     eng.close()
     return man
 
@@ -118,6 +124,15 @@ def main() -> int:
         check(genna.store_format(FIXTURE) == man["format"],
               f"fixture reports format v{genna.store_format(FIXTURE)}, "
               f"manifest says v{man['format']}")
+
+        # If the fixture is ever regenerated compressed, this test silently
+        # stops measuring format stability and starts measuring whether the
+        # build found libzstd. Assert the isolation rather than trusting it.
+        from genna.core import _payload_codec
+        codec = _payload_codec(str(FIXTURE))
+        check(codec is None,
+              f"the fixture payload is uncompressed, so this tests the FORMAT "
+              f"rather than which codecs the build found (codec: {codec})")
 
         # Copy it: opening arms a WAL and would touch a committed file.
         tmp = Path(tempfile.mkdtemp(prefix="genna-fmt-"))

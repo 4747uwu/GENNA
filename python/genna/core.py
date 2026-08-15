@@ -285,6 +285,10 @@ class Object:
                 f"{len(self.versions)} versions>")
 
 
+GN_SAVE_MAPPABLE = 1
+GN_SAVE_RAW = 2
+
+
 class Engine:
     """A Genna store: a dictionary, a chunk sea, and named versioned objects.
 
@@ -451,13 +455,23 @@ class Engine:
                 for i in range(n)]
 
     # -- persistence ------------------------------------------------------
-    def save(self, path: str | os.PathLike) -> None:
+    def save(self, path: str | os.PathLike, raw: bool = False) -> None:
         """Write the whole store -- chunks, dictionary, every version -- to
         `path`, atomically. Binds this engine to `path` and starts a WAL, so
-        edits after the save are crash-safe too."""
+        edits after the save are crash-safe too.
+
+        `raw=True` writes the payload uncompressed. The reason it exists:
+        a store compressed with zstd cannot be opened by a build of Genna
+        that was compiled without zstd, so a compressed store is portable
+        only among builds that share its compression support. Raw stores
+        open anywhere. Used for the format fixture, which must test the
+        FORMAT rather than which optional libraries a build happened to
+        find.
+        """
         self._check_open()
+        flags = GN_SAVE_RAW if raw else 0
         with GENNA_LOCK:
-            rc = lib.gn_save(self._ptr, str(path).encode("utf-8"))
+            rc = lib.gn_save_ex(self._ptr, str(path).encode("utf-8"), flags)
         if rc != 0:
             raise GennaError(f"save to {path!r} failed: {os.strerror(ctypes.get_errno() or 0)}")
 
@@ -544,6 +558,32 @@ def store_format(path: str | os.PathLike) -> int:
     return int(lib.gn_store_format(str(path).encode("utf-8")))
 
 
+#: Snapshot header flags, mirroring src/genna_persist.c.
+_SNAP_FLAG_DEFLATE = 1
+_SNAP_FLAG_ZSTD = 2
+
+
+def _payload_codec(p: str) -> str | None:
+    """Which codec compressed this store's payload, if any.
+
+    Read straight out of the header rather than asked of the library, because
+    the question is being asked precisely when the library refused to load it.
+    """
+    try:
+        with open(p, "rb") as f:      # noqa: PTH123 - stdlib open, not genna.open
+            hdr = f.read(16)
+    except OSError:
+        return None
+    if len(hdr) < 16:
+        return None
+    flags = int.from_bytes(hdr[12:16], "little")
+    if flags & _SNAP_FLAG_ZSTD:
+        return "zstd"
+    if flags & _SNAP_FLAG_DEFLATE:
+        return "zlib"
+    return None
+
+
 def _why_open_failed(p: str) -> str:
     """Say which failure it was, rather than guessing at the likeliest.
 
@@ -574,6 +614,20 @@ def _why_open_failed(p: str) -> str:
                "README.")
         )
     if got > 0:
+        # Before blaming the payload, check whether this build can even
+        # decompress it. A store written with zstd cannot be opened by a
+        # Genna compiled without zstd, and saying "damaged" there is a
+        # confident, wrong answer about somebody's intact file -- the same
+        # mistake this function was written to stop.
+        codec = _payload_codec(p)
+        if codec:
+            return (
+                f"could not open {p!r}: its payload is compressed with "
+                f"{codec}, and this build of Genna was compiled without "
+                f"{codec} support. The file is fine; the build cannot read "
+                f"it. Install {codec}'s development package and reinstall "
+                f"genna from source, or open it with a build that has "
+                f"{codec}.")
         return (f"could not open {p!r}: the format version is v{got}, which "
                 f"this build reads, so the payload or its checksum is "
                 f"damaged.")
