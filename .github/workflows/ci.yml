@@ -37,7 +37,33 @@ jobs:
       # signal is the step NAME. As a single `make ci`, a failure in any of
       # 8 compiles and 9 runs printed "Build and test failed" and nothing
       # more -- which is why macos-latest has been red and undiagnosed.
+      # macOS c/compile is red and its text is unreadable without a token, so
+      # these probes encode the diagnosis in step NAMES, which are public.
+      # If `plain` fails while `brew-prefix` passes, the cause is that
+      # Homebrew installs to /opt/homebrew on arm64 and that is not on
+      # clang's default include/lib search path -- nothing to do with whether
+      # zstd is present. Diagnosis only; no build flags change in this commit.
+      - name: mac/brew-zstd-installed
+        if: runner.os == 'macOS'
+        run: brew list zstd
+      - name: mac/zstd-header-plain
+        if: always() && runner.os == 'macOS'
+        run: echo '#include <zstd.h>' | cc -fsyntax-only -xc -
+      - name: mac/zstd-header-with-brew-prefix
+        if: always() && runner.os == 'macOS'
+        run: echo '#include <zstd.h>' | cc -fsyntax-only -xc -I"$(brew --prefix)/include" -
+      - name: mac/zlib-header-plain
+        if: always() && runner.os == 'macOS'
+        run: echo '#include <zlib.h>' | cc -fsyntax-only -xc -
+      - name: mac/link-zstd-plain
+        if: always() && runner.os == 'macOS'
+        run: printf '#include <zstd.h>\nint main(void){return (int)ZSTD_compressBound(64);}\n' | cc -xc - -lzstd -o /tmp/zp
+      - name: mac/link-zstd-with-brew-prefix
+        if: always() && runner.os == 'macOS'
+        run: printf '#include <zstd.h>\nint main(void){return (int)ZSTD_compressBound(64);}\n' | cc -xc - -I"$(brew --prefix)/include" -L"$(brew --prefix)/lib" -lzstd -o /tmp/zb
+
       - name: c/compile
+        if: always()
         run: make ci-build CC=cc
 
       - name: c/test_genna
