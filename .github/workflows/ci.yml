@@ -143,6 +143,18 @@ jobs:
       - name: Install (builds the native library from source)
         run: python -m pip install -v .
 
+      # Then throw that away and install the WHEEL instead, so everything
+      # below tests the artifact a user actually receives. `pip install .`
+      # exercises the source path; it does not prove the wheel is complete.
+      # wheels.yml builds the distributable ones, but it is tag-triggered and
+      # so proves nothing on an ordinary push.
+      - name: Build a wheel and install that instead
+        shell: bash
+        run: |
+          python -m pip wheel . -w dist --no-deps
+          ls -l dist
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+
       - name: Smoke test the installed package
         # Run from a different directory so a working import cannot be the
         # repo's own python/ directory shadowing the installed package.
