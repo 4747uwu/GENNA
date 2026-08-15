@@ -46,18 +46,12 @@ jobs:
       - name: mac/brew-zstd-installed
         if: runner.os == 'macOS'
         run: brew list zstd
-      - name: mac/zstd-header-plain
-        if: always() && runner.os == 'macOS'
-        run: echo '#include <zstd.h>' | cc -fsyntax-only -xc -
       - name: mac/zstd-header-with-brew-prefix
         if: always() && runner.os == 'macOS'
         run: echo '#include <zstd.h>' | cc -fsyntax-only -xc -I"$(brew --prefix)/include" -
       - name: mac/zlib-header-plain
         if: always() && runner.os == 'macOS'
         run: echo '#include <zlib.h>' | cc -fsyntax-only -xc -
-      - name: mac/link-zstd-plain
-        if: always() && runner.os == 'macOS'
-        run: printf '#include <zstd.h>\nint main(void){return (int)ZSTD_compressBound(64);}\n' | cc -xc - -lzstd -o /tmp/zp
       - name: mac/link-zstd-with-brew-prefix
         if: always() && runner.os == 'macOS'
         run: printf '#include <zstd.h>\nint main(void){return (int)ZSTD_compressBound(64);}\n' | cc -xc - -I"$(brew --prefix)/include" -L"$(brew --prefix)/lib" -lzstd -o /tmp/zb
@@ -68,31 +62,40 @@ jobs:
 
       - name: c/test_genna
         if: always()
-        run: ./test_genna
+        shell: bash
+        run: bash tools/ci_run.sh c/test_genna ./test_genna
       - name: c/edge
         if: always()
-        run: ./edge
+        shell: bash
+        run: bash tools/ci_run.sh c/edge ./edge
       - name: c/fuzz_test
         if: always()
-        run: ./fuzz_test
+        shell: bash
+        run: bash tools/ci_run.sh c/fuzz_test ./fuzz_test
       - name: c/merge_test
         if: always()
-        run: ./merge_test
+        shell: bash
+        run: bash tools/ci_run.sh c/merge_test ./merge_test
       - name: c/agg_test
         if: always()
-        run: ./agg_test 4
+        shell: bash
+        run: bash tools/ci_run.sh c/agg_test ./agg_test 4
       - name: c/persist_write
         if: always()
-        run: ./persist_test write sample_ml_dataset.jsonl gn_store.gn gn_ref.bin
+        shell: bash
+        run: bash tools/ci_run.sh c/persist_write ./persist_test write sample_ml_dataset.jsonl gn_store.gn gn_ref.bin
       - name: c/persist_verify
         if: always()
-        run: ./persist_test verify gn_store.gn gn_ref.bin
+        shell: bash
+        run: bash tools/ci_run.sh c/persist_verify ./persist_test verify gn_store.gn gn_ref.bin
       - name: c/crash_test
         if: always()
-        run: ./crash_test parent gn_crash.gn gn_witness.txt sample_ml_dataset.jsonl 3 200
+        shell: bash
+        run: bash tools/ci_run.sh c/crash_test ./crash_test parent gn_crash.gn gn_witness.txt sample_ml_dataset.jsonl 3 200
       - name: c/oocore_test
         if: always()
-        run: ./oocore_test . 8 keep
+        shell: bash
+        run: bash tools/ci_run.sh c/oocore_test ./oocore_test . 8 keep
 
       - name: Build under ASan + UBSan
         run: |
@@ -156,35 +159,43 @@ jobs:
       - name: t/core
         if: always()
         working-directory: python
-        run: python tests/test_core.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/core python tests/test_core.py
       - name: t/threads
         if: always()
         working-directory: python
-        run: python tests/test_threads.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/threads python tests/test_threads.py
       - name: t/query
         if: always()
         working-directory: python
-        run: python tests/test_query.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/query python tests/test_query.py
       - name: t/lazy
         if: always()
         working-directory: python
-        run: python tests/test_lazy.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/lazy python tests/test_lazy.py
       - name: t/table
         if: always()
         working-directory: python
-        run: python tests/test_table.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/table python tests/test_table.py
       - name: t/sketch
         if: always()
         working-directory: python
-        run: python tests/test_sketch.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/sketch python tests/test_sketch.py
       - name: t/demo
         if: always()
         working-directory: python
-        run: python tests/test_demo.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/demo python tests/test_demo.py
       - name: t/ci-wiring
         if: always()
         working-directory: python
-        run: python tests/test_ci_wiring.py
+        shell: bash
+        run: bash ../tools/ci_run.sh t/ci_wiring python tests/test_ci_wiring.py
 
       - name: probe-selftest
         if: always()
