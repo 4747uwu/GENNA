@@ -81,25 +81,50 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: genna-demo --rows 2000
 
-      - name: Full Python suite
-        # Each of these is a standalone script with its own checks and exit
-        # code, not pytest -- so they run with whatever interpreter is here.
-        # test_semantic is excluded on purpose: it downloads a real
-        # sentence-transformer, which is not a thing to do on every push.
-        shell: bash
-        run: |
-          python -m pip install "pyarrow>=12" "numpy>=1.21" || echo "extras unavailable; table/sketch will report SKIP"
-          cd python
-          rc=0
-          for t in tests/test_core.py tests/test_threads.py tests/test_query.py \
-                   tests/test_lazy.py tests/test_table.py tests/test_sketch.py \
-                   tests/test_demo.py; do
-            echo "=== $t"
-            python "$t" || rc=1
-          done
-          exit $rc
+      # The suite is ONE STEP PER TEST FILE on purpose. As a single loop, a
+      # failure shows up only as "Full Python suite failed" -- and reading
+      # which file broke needs a token, because GitHub returns 403 for
+      # workflow logs unauthenticated. Split like this, the job's step names
+      # name the failing test through the public API. `if: always()` so one
+      # failure still leaves the rest of the matrix informative.
+      #
+      # test_semantic is excluded on purpose: it downloads a real
+      # sentence-transformer, which is not a thing to do on every push.
+      - name: extras for table/sketch
+        if: always()
+        run: python -m pip install "pyarrow>=12" "numpy>=1.21"
 
-      - name: The link probe must be able to fail
+      - name: t/core
+        if: always()
+        working-directory: python
+        run: python tests/test_core.py
+      - name: t/threads
+        if: always()
+        working-directory: python
+        run: python tests/test_threads.py
+      - name: t/query
+        if: always()
+        working-directory: python
+        run: python tests/test_query.py
+      - name: t/lazy
+        if: always()
+        working-directory: python
+        run: python tests/test_lazy.py
+      - name: t/table
+        if: always()
+        working-directory: python
+        run: python tests/test_table.py
+      - name: t/sketch
+        if: always()
+        working-directory: python
+        run: python tests/test_sketch.py
+      - name: t/demo
+        if: always()
+        working-directory: python
+        run: python tests/test_demo.py
+
+      - name: probe-selftest
+        if: always()
         # Runs AFTER the install checks on purpose. This asserts a property of
         # the build system, not of the package; when it ran first, a bug in
         # the test itself masked the thing actually being verified -- whether
