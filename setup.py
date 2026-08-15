@@ -109,18 +109,36 @@ def _compiler() -> str:
     )
 
 
-def _probe_link(cc: str, header: str, flags: list, env) -> bool:
-    """Can we build a SHARED library against this, with these exact flags?
+# The probe MUST call a real symbol from each library. A probe body of
+# `int probe(void){return 0;}` compiles and links against anything, because
+# the linker has no undefined symbol to resolve and so never extracts the
+# archive member -- which is precisely where a missing -fPIC lives. The probe
+# passed, the real build then died with
+#
+#   relocation R_X86_64_PC32 ... can not be used when making a shared object
+#
+# on stock Ubuntu 24.04. Reference a symbol or the probe tests nothing.
+_PROBE_CALL = {
+    "zstd.h": "size_t probe(void){ return ZSTD_compressBound(64); }",
+    "zlib.h": "const char *probe(void){ return zlibVersion(); }",
+}
 
-    Two things are being checked at once, and the second is the one that
-    matters. Checking for the header alone is not enough -- plenty of systems
-    ship zlib.h with no linkable libz. And building a shared object rather
-    than an executable is what catches a static archive that was compiled
-    without -fPIC, which links fine into a program and fails only here.
+
+def _probe_link(cc: str, header: str, flags: list, env) -> bool:
+    """Can we build a SHARED library that actually CALLS this, with these flags?
+
+    Three things are being checked, and the last is the one that matters.
+    The header alone is not enough -- plenty of systems ship zlib.h with no
+    linkable libz. Building a shared object rather than an executable is what
+    exposes a static archive compiled without -fPIC. And calling a real symbol
+    is what forces the linker to pull that archive member in at all.
     """
+    body = _PROBE_CALL.get(header)
+    if body is None:                       # unknown header: nothing to prove
+        return False
     with tempfile.TemporaryDirectory() as td:
         c = Path(td) / "probe.c"
-        c.write_text("#include <%s>\nint probe(void){return 0;}\n" % header)
+        c.write_text("#include <stddef.h>\n#include <%s>\n%s\n" % (header, body))
         out = Path(td) / ("probe.dll" if sys.platform == "win32" else "probe.so")
         cmd = [cc, "-shared", str(c), "-o", str(out)]
         if sys.platform != "win32":
