@@ -106,6 +106,16 @@ jobs:
           ASAN_OPTIONS: halt_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
 
+      # An explicit verdict from the JOB, so nothing has to be inferred from
+      # whatever the last step happened to print. `if: always()` means this
+      # runs even after a failure, and job.status carries the truth.
+      - name: VERDICT
+        if: always()
+        shell: bash
+        run: |
+          echo "VERDICT: ${{ job.status == 'success' && 'PASS' || 'FAIL' }}"
+          test "${{ job.status }}" = "success"
+
   python:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -207,3 +217,13 @@ jobs:
         # On Linux it asserts the probe REJECTS a non-PIC archive. On
         # Windows/macOS that check reports n/a rather than counting as a pass.
         run: python tools/probe_selftest.py
+
+      # An explicit verdict from the JOB, so nothing has to be inferred from
+      # whatever the last step happened to print. `if: always()` means this
+      # runs even after a failure, and job.status carries the truth.
+      - name: VERDICT
+        if: always()
+        shell: bash
+        run: |
+          echo "VERDICT: ${{ job.status == 'success' && 'PASS' || 'FAIL' }}"
+          test "${{ job.status }}" = "success"
