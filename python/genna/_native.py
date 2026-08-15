@@ -158,6 +158,8 @@ _SIGS = [
     ("gn_wal_bytes",          c_uint64, [c_void_p]),
     ("gn_wal_replayed",       c_uint64, [c_void_p]),
     ("gn_store_path",         c_char_p, [c_void_p]),
+    ("gn_store_format",       c_int,    [c_char_p]),
+    ("gn_format_version",     c_int,    []),
     ("gn_engine_objects",     c_uint32, [c_void_p]),
     ("gn_engine_object",      c_void_p, [c_void_p, c_uint32]),
 ]

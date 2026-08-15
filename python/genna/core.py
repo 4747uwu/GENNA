@@ -526,7 +526,56 @@ def open_store(path: str | os.PathLike) -> Engine:
     with GENNA_LOCK:
         ptr = lib.gn_open(p.encode("utf-8"))
     if not ptr:
-        raise GennaError(
-            f"could not open {p!r}: not a Genna store, or it is corrupt "
-            f"(the header/payload checksum did not verify)")
+        raise GennaError(_why_open_failed(p))
     return Engine(_ptr=ptr)
+
+
+def format_version() -> int:
+    """STABLE. The on-disk format version this build writes and reads."""
+    return int(lib.gn_format_version())
+
+
+def store_format(path: str | os.PathLike) -> int:
+    """STABLE. The format version of the store at `path`.
+
+    Returns the version, 0 if the file is not a Genna store at all, or -1 if
+    the header is unreadable or corrupt.
+    """
+    return int(lib.gn_store_format(str(path).encode("utf-8")))
+
+
+def _why_open_failed(p: str) -> str:
+    """Say which failure it was, rather than guessing at the likeliest.
+
+    gn_open() rejects an unreadable header, a wrong magic and a version
+    mismatch with the same EINVAL. Reporting all three as "not a Genna store,
+    or it is corrupt" told anyone holding a store from a newer build that
+    their intact file was damaged -- a confident, wrong message, which is
+    worse than a vague one.
+    """
+    mine = format_version()
+    try:
+        got = store_format(p)
+    except Exception:
+        got = -1
+    if got == 0:
+        return (f"could not open {p!r}: this is not a Genna store "
+                f"(the file does not start with the Genna magic).")
+    if got > 0 and got != mine:
+        newer = got > mine
+        return (
+            f"could not open {p!r}: it is on-disk format v{got}, and this "
+            f"build of Genna reads only v{mine}. "
+            + ("The store was written by a NEWER Genna than this one -- "
+               "upgrade the library rather than converting the file."
+               if newer else
+               "The store was written by an OLDER Genna. Within 0.x the "
+               "format may change; see the compatibility policy in the "
+               "README.")
+        )
+    if got > 0:
+        return (f"could not open {p!r}: the format version is v{got}, which "
+                f"this build reads, so the payload or its checksum is "
+                f"damaged.")
+    return (f"could not open {p!r}: the header is truncated or its checksum "
+            f"does not verify.")

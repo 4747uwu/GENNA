@@ -1571,6 +1571,48 @@ uint64_t gn_store_generation(const char *path) {
     return h.err ? 0 : gen;
 }
 
+/* What format is this file, without loading it?
+ *
+ * gn_open() rejects a version mismatch with EINVAL, which is correct but
+ * indistinguishable from "not a Genna store" and "corrupt header". A caller
+ * holding a store written by a newer build was told its file was corrupt --
+ * a confident, wrong message that sends people hunting. This lets the caller
+ * say which it is.
+ *
+ * Returns the format version (>= 1) on success. Returns 0 when the file is
+ * not a Genna snapshot at all, and -1 on I/O error or a truncated/corrupt
+ * header, with errno set. The distinction between 0 and -1 matters: one means
+ * "wrong kind of file", the other means "right kind, damaged".
+ */
+int gn_store_format(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;                         /* errno from fopen */
+    uint8_t hdr[SNAP_HDR_BYTES];
+    size_t got = fread(hdr, 1, sizeof hdr, f);
+    fclose(f);
+    /* Magic before length, deliberately. A 47-byte file that is not a Genna
+     * store at all must report "not ours" (0), not "damaged" (-1) -- the
+     * length check firing first told the caller their unrelated file was a
+     * corrupt Genna store. Only once the magic matches does a short read mean
+     * a truncated store. */
+    if (got < 8 || memcmp(hdr, GN_SNAP_MAGIC, 8) != 0) return 0;
+    if (got != sizeof hdr) { errno = EINVAL; return -1; }
+    rdr h = { hdr, sizeof hdr, 8, 0 };
+    uint32_t ver = ru32(&h);
+    if (h.err) { errno = EINVAL; return -1; }
+    /* The header checksum covers bytes 0..55 in every version so far, so it
+     * can be verified before trusting anything else in the header. */
+    {
+        rdr c = { hdr, sizeof hdr, 56, 0 };
+        uint32_t hcrc = ru32(&c);
+        if (c.err || hcrc != crc32_up(0, hdr, 56)) { errno = EINVAL; return -1; }
+    }
+    return (int)ver;
+}
+
+/* What format version does THIS build write and read? */
+int gn_format_version(void) { return (int)GN_FORMAT_VER; }
+
 /* The bulk check gn_open() skips for a mappable store. Streams the tail of
  * the file so verifying a store bigger than RAM does not require RAM. */
 int gn_verify_chunks(const char *path) {

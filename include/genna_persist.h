@@ -185,6 +185,18 @@ void gn_wal__trim  (gn_engine *e, const char *name, uint32_t keep);
  * rejected rather than misread. */
 #define GN_FORMAT_VER   3u
 
+/* STABLE. What format version is the store at `path`?
+ *
+ * Returns the version (>= 1), 0 if the file is not a Genna snapshot at all,
+ * or -1 on I/O error or a corrupt header (errno set). Lets a caller tell
+ * "written by a newer Genna" apart from "not a Genna store" and "damaged",
+ * which gn_open()'s single EINVAL cannot.
+ */
+int gn_store_format(const char *path);
+
+/* STABLE. The format version this build writes, and the only one it reads. */
+int gn_format_version(void);
+
 /* Verify the chunk bulk of a store on disk against the CRC in its header.
  * This is the check gn_open() deliberately does NOT do for a mappable store,
  * because performing it reads every byte and defeats the mapping. Call it

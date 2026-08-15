@@ -153,6 +153,13 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: genna-demo --rows 2000
 
+      # The exact sequence a new reader performs: install, then run the
+      # example. From runner.temp so the repo's python/ cannot be what is
+      # actually importing.
+      - name: The example must run from outside the repo
+        working-directory: ${{ runner.temp }}
+        run: python ${{ github.workspace }}/examples/time_travel.py
+
       # The suite is ONE STEP PER TEST FILE on purpose. As a single loop, a
       # failure shows up only as "Full Python suite failed" -- and reading
       # which file broke needs a token, because GitHub returns 403 for
@@ -206,6 +213,16 @@ jobs:
         working-directory: python
         shell: bash
         run: bash ../tools/ci_run.sh t/ci_wiring python tests/test_ci_wiring.py
+      - name: t/format-stability
+        if: always()
+        working-directory: python
+        shell: bash
+        run: bash ../tools/ci_run.sh t/format python tests/test_format_stability.py
+      - name: t/api-stability
+        if: always()
+        working-directory: python
+        shell: bash
+        run: bash ../tools/ci_run.sh t/api python tests/test_api_stability.py
 
       - name: probe-selftest
         if: always()

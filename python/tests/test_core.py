@@ -293,11 +293,43 @@ def test_dataset():
     ds.engine.close()
 
 
-def main():
+def test_public_types():
+    """genna.Object and genna.Version are exported types, not just things
+    other calls happen to return.
+
+    Both are marked stable in genna.__stability__, and until this existed
+    nothing referenced either BY NAME -- every test used them implicitly via
+    `obj.update(...)`. test_api_stability caught that: a name promised stable
+    with no test naming it is a promise with nothing behind it.
+    """
+    print("\n-- the exported types --")
+    eng = genna.Engine()
+    obj = eng.create("typed", b"first")
+    check(isinstance(obj, genna.Object),
+          f"Engine.create returns a genna.Object ({type(obj).__name__})")
+
+    obj.update(0, len(obj), b"second")
+    v0 = obj.versions[0]
+    check(isinstance(v0, genna.Version),
+          f"indexing .versions gives a genna.Version ({type(v0).__name__})")
+    check(v0.bytes() == b"first",
+          "and an old Version still reads its own bytes")
+    check(v0.index == 0, f"Version.index reports its position ({v0.index})")
+    check(len(v0) == len(b"first"), f"len(Version) is its byte length ({len(v0)})")
+    check(v0.read(1, 3) == b"irs", "Version.read takes a byte range")
+    check(obj.name == "typed", f"Object.name round-trips ({obj.name!r})")
+    check(len(obj) == len(b"second"), "len(Object) is the live length")
+    check(all(isinstance(v, genna.Version) for v in obj.versions),
+          "iterating .versions yields Versions throughout")
+    eng.close()
+
+
+def main() -> int:
     print("=== genna python bindings: correctness ===")
     for fn in (test_roundtrip, test_binary_safe, test_large, test_versions,
                test_rollback, test_differential_vs_shadow, test_search,
-               test_engine_dict_api, test_errors, test_persistence, test_dataset):
+               test_engine_dict_api, test_errors, test_persistence,
+               test_dataset, test_public_types):
         fn()
     print(f"\n{'BINDINGS: FAILURES' if FAILS else 'BINDINGS: ALL PASS'} "
           f"({len(FAILS)} failures / {COUNT} checks)")

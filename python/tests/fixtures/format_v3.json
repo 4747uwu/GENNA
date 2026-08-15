@@ -1,0 +1,46 @@
+{
+ "format": 3,
+ "objects": {
+  "binary": [
+   {
+    "index": 0,
+    "len": 1024,
+    "sha256": "785b0751fc2c53dc14a4ce3d800e69ef9ce1009eb327ccf458afe09c242c26c9"
+   },
+   {
+    "index": 1,
+    "len": 1024,
+    "sha256": "3af6dbef8362452d2b45ad97deb9e43180fb90aac309860e26e123860cce62a7"
+   }
+  ],
+  "readme": [
+   {
+    "index": 0,
+    "len": 68,
+    "sha256": "242bd02443ab5566254edf9898ab3169596cc7f0bf6082cf4bf1322aabd490bb"
+   },
+   {
+    "index": 1,
+    "len": 66,
+    "sha256": "04bdd66968e853a4df70e3946a425ca098adbfd59b1faee7b2d1ffbc373fcd8a"
+   },
+   {
+    "index": 2,
+    "len": 64,
+    "sha256": "d0d89242190d6627b09387936675368bfdbe33454bec5a9691cc6c4508ab408b"
+   }
+  ],
+  "unicode": [
+   {
+    "index": 0,
+    "len": 71,
+    "sha256": "289487fe2e25d6aedfee3f0020ae3e327a4efbdae42c99a1fa41161f47930105"
+   },
+   {
+    "index": 1,
+    "len": 41,
+    "sha256": "6288ec6e8dae36887b8ecaf7638c6af76f05715f3fdf6431c5bd520e190ac293"
+   }
+  ]
+ }
+}

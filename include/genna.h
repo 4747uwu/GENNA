@@ -11,6 +11,46 @@
  *   L1. Tokens are fixed-width (u32). Never entropy-coded on the hot path.
  *   L2. Chunks are immutable after seal. Updates create chunks, never edit them.
  *   L3. Every object version pins its dictionary. Dictionary is append-only.
+ *
+ * ---------------------------------------------------------------------------
+ * API STABILITY
+ * ---------------------------------------------------------------------------
+ * Every public function here is either STABLE or UNSTABLE. There is no third
+ * category and no unmarked function: if a name is not in the STABLE list
+ * below, it is UNSTABLE, and that is a deliberate statement rather than an
+ * omission.
+ *
+ *   STABLE    Covered by a test, and will not change shape within 0.x. If it
+ *             has to change, the change ships with a converter or a version
+ *             bump, not quietly.
+ *   UNSTABLE  May change or disappear in any 0.x release without a major
+ *             bump. Usable, but pin your version and expect to read a
+ *             changelog. Most of these are internals that happen to be
+ *             reachable, not an invitation.
+ *
+ * STABLE (the CRUD surface, persistence, and history):
+ *
+ *   gn_engine_new     gn_engine_free    gn_engine_stats
+ *   gn_create         gn_delete         gn_object_open
+ *   gn_read           gn_read_version   gn_update
+ *   gn_cut            gn_graft          gn_search
+ *   gn_trim_history
+ *   gn_save           gn_open           gn_close        (genna_persist.h)
+ *   gn_store_format   gn_format_version gn_verify_chunks
+ *
+ * UNSTABLE (everything else), notably:
+ *
+ *   gn_ext_*    the extent-tree internals. Reachable because the tests and
+ *               the aggregate work need them; not a supported surface.
+ *   gn_net_*    replication. Real, but the wire format is not settled.
+ *   gn_dict_*   the learned dictionary. Shape is likely to change.
+ *   gn_store_*  the chunk sea below the object layer (gn_store_format and
+ *               gn_format_version are the exceptions and are STABLE).
+ *   gn_tokenize gn_detokenize gn_detok_len  — the token layer.
+ *
+ * Unsure about a name? It is UNSTABLE. Unstable-and-honest beats
+ * stable-and-regretted, and a promise is only worth what the tests behind it
+ * are worth.
  */
 #ifndef GENNA_H
 #define GENNA_H
