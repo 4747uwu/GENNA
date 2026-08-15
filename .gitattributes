@@ -22,9 +22,19 @@ Makefile text eol=lf
 LICENSE  text eol=lf
 
 # Never touched.
-*.png  binary
-*.jpg  binary
-*.ply  binary
-*.tar  binary
-*.gz   binary
-*.gn   binary
+#
+# *.genna especially: python/tests/fixtures/format_v3.genna is the fixture
+# that pins the on-disk format. Under `* text=auto` git decides byte-by-byte
+# whether a file looks textual, and it currently guesses binary for this one
+# -- but that is a heuristic about the fixture's *contents*, not a rule. A
+# future fixture over more text-like data would be line-ending converted on
+# checkout, corrupting the one file whose whole job is to be byte-exact, and
+# it would fail only on Linux and macOS. Say it explicitly instead.
+*.png   binary
+*.jpg   binary
+*.ply   binary
+*.tar   binary
+*.gz    binary
+*.gn    binary
+*.genna binary
+*.wal   binary
