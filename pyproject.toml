@@ -7,7 +7,10 @@ name = "genna"
 version = "0.1.0"
 description = "Versioned datasets that don't rewrite themselves: O(log n) edits, free version history, byte-exact."
 readme = "README.md"
-requires-python = ">=3.8"
+# CI tests 3.9 and 3.12. 3.8 is EOL and was never tested, and a
+# support claim with no test behind it is the thing this project
+# spends its time removing.
+requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Genna contributors" }]
 keywords = ["dataset", "versioning", "deduplication", "curation", "ml-data"]
@@ -34,10 +37,11 @@ dev = ["pytest>=7"]
 
 [project.scripts]
 genna-demo = "genna.demo:main"
+genna-example = "genna.example_time_travel:main"
 
 [project.urls]
-Homepage = "https://github.com/genna-engine/genna"
-Source = "https://github.com/genna-engine/genna"
+Homepage = "https://github.com/4747uwu/GENNA"
+Source = "https://github.com/4747uwu/GENNA"
 
 [tool.setuptools]
 packages = ["genna"]
@@ -54,7 +58,7 @@ genna = ["*.so", "*.dylib", "*.dll"]
 # source anywhere, which is why src/ and include/ ship inside it.
 # ---------------------------------------------------------------------------
 [tool.cibuildwheel]
-build = "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 # PyPy is skipped only because it is untested here, not because it is known
 # broken -- the library is plain ctypes, so it has a fair chance of working.
 skip = "pp* *-musllinux_i686 *_i686 *-win32"
@@ -66,10 +70,25 @@ test-command = "python {project}/python/tests/smoke_wheel.py"
 [tool.cibuildwheel.linux]
 # zlib/zstd are detected at build time; installing them here is what gets
 # compression into the Linux wheels. auditwheel then vendors them in.
-before-all = "yum install -y zlib-devel libzstd-devel || apk add --no-cache zlib-dev zstd-dev || true"
+# zlib is REQUIRED and must fail loudly if missing -- it is in the base
+# repos of every manylinux image, so a failure here means something is
+# genuinely wrong rather than merely unavailable.
+#
+# zstd is best-effort: libzstd-devel is not in manylinux2014's base repos
+# (CentOS 7), it needs EPEL, and EPEL for a distro past EOL is not something
+# to make a release depend on. The previous `|| true` covered BOTH, so a
+# failed zlib install was swallowed too and the comment claiming "this is
+# what gets compression into the Linux wheels" was unverified. smoke_wheel.py
+# now asserts what actually made it in, per platform, inside the wheel.
+before-all = """
+set -e
+(yum install -y zlib-devel || apk add --no-cache zlib-dev)
+set +e
+yum install -y epel-release && yum install -y libzstd-devel   || apk add --no-cache zstd-dev   || echo 'NOTE: zstd unavailable on this image; wheel will use zlib only'
+"""
 
 [tool.cibuildwheel.macos]
-before-all = "brew install zstd || true"
+before-all = "brew list zstd || brew install zstd"
 
 [tool.cibuildwheel.windows]
 before-build = "pip install delvewheel"

@@ -209,9 +209,11 @@ jobs:
       # The exact sequence a new reader performs: install, then run the
       # example. From runner.temp so the repo's python/ cannot be what is
       # actually importing.
+      # As a console script from the installed wheel, not by path into the
+      # repo -- that is what a `pip install genna` user actually has.
       - name: The example must run from outside the repo
         working-directory: ${{ runner.temp }}
-        run: python ${{ github.workspace }}/examples/time_travel.py
+        run: genna-example
 
       # The suite is ONE STEP PER TEST FILE on purpose. As a single loop, a
       # failure shows up only as "Full Python suite failed" -- and reading

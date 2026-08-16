@@ -27,12 +27,14 @@ to the sdist, which builds the C engine and needs a compiler
 ## See it work
 
 ```bash
-python examples/time_travel.py
+genna-example
 ```
 
-Fifty lines, no benchmarks, nothing to configure
-([`examples/time_travel.py`](examples/time_travel.py)). It writes a short
-document, edits it three times, then goes back:
+Fifty lines, no benchmarks, nothing to configure. It ships inside the package,
+so that command works straight after `pip install genna` — or run
+[`examples/time_travel.py`](examples/time_travel.py) from a checkout, which
+calls the same code. It writes a short document, edits it three times, then
+goes back:
 
 ```
 Wrote the first draft: 201 bytes, version 0.
