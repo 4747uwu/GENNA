@@ -20,7 +20,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14, windows-latest]
+        # macos-15-intel, not macos-13: the macOS 13 image was retired on
+        # 8 December 2025, and a job asking for a retired label does not
+        # fail -- it sits QUEUED forever, rendering as "pending" rather than
+        # broken. This one waited 85 minutes while every sibling job in the
+        # same run finished. Same shape as the rest: a thing that cannot run
+        # looks identical to a thing that is fine.
+        #
+        # macos-15-intel is GitHub's last x86_64 macOS image and is scheduled
+        # to go away in AUGUST 2027. When it does, Intel Macs fall back to
+        # building from the sdist, which needs Xcode CLT.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-14, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
