@@ -8,6 +8,11 @@ on:
 # `pip install genna` must never need a C compiler. That means a prebuilt
 # wheel per platform, each one import-tested and round-trip-tested on the
 # platform it was built for before it is allowed near PyPI.
+#
+# This workflow was present from the initial commit and GitHub never
+# registered it -- it did not appear in the Actions sidebar or in
+# /actions/workflows, so "Run workflow" was not offered and it could not be
+# dry-run. Touching the file forces a re-scan on the next push.
 jobs:
   build:
     name: wheel ${{ matrix.os }}
