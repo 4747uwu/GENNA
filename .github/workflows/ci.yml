@@ -155,6 +155,47 @@ jobs:
           ls -l dist
           python -m pip install --force-reinstall --no-deps dist/*.whl
 
+      # auditwheel rejected every Linux wheel with "found the following shared
+      # library/libraries in purelib folder: libgenna.so". The metadata said
+      # Root-Is-Purelib: false, but the LAYOUT put the library under
+      # <name>.data/purelib/ because setuptools picks purelib-vs-platlib from
+      # has_ext_modules(), and a ctypes library declares none. delocate and
+      # delvewheel accepted the same wheel, so only Linux was ever red -- and
+      # only in a workflow that had never run. Assert the layout everywhere.
+      - name: wheel layout
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, sys, zipfile
+          whl = glob.glob('dist/*.whl')[0]
+          z = zipfile.ZipFile(whl)
+          names = z.namelist()
+          print('wheel:', whl)
+
+          bad = [n for n in names if '.data/purelib' in n]
+          libs = [n for n in names if n.endswith(('.so', '.dll', '.dylib'))]
+          wheel_meta = next(z.read(n).decode() for n in names
+                            if n.endswith('.dist-info/WHEEL'))
+          print(wheel_meta)
+          for n in libs:
+              print('  library at:', n)
+
+          fail = []
+          if bad:
+              fail.append('shared library under .data/purelib/: %s' % bad)
+          if not libs:
+              fail.append('no native library in the wheel at all')
+          if not any(n.startswith('genna/') for n in libs):
+              fail.append('library is not at genna/<lib> in platlib: %s' % libs)
+          if 'Root-Is-Purelib: false' not in wheel_meta:
+              fail.append('WHEEL does not say Root-Is-Purelib: false')
+
+          for f in fail:
+              print('FAIL', f)
+          print('VERDICT:', 'FAIL' if fail else 'PASS')
+          sys.exit(1 if fail else 0)
+          PY
+
       - name: Smoke test the installed package
         # Run from a different directory so a working import cannot be the
         # repo's own python/ directory shadowing the installed package.

@@ -16,6 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import setuptools.dist
 from setuptools import setup
 from setuptools.command.build_py import build_py as _build_py
 
@@ -377,4 +378,32 @@ if _bdist_wheel is not None:
     CMDCLASS["bdist_wheel"] = bdist_wheel
 
 
-setup(cmdclass=CMDCLASS)
+class _BinaryDistribution(setuptools.dist.Distribution):
+    """Tell setuptools this distribution is NOT pure Python.
+
+    The engine ships as a prebuilt shared library loaded through ctypes rather
+    than as a CPython extension module -- that is what lets one wheel serve
+    every 3.x instead of one per interpreter. The cost is that setuptools has
+    no ext_modules to look at, so it decided the package was pure, installed it
+    into purelib, and bdist_wheel filed the library under
+
+        genna-0.1.0.data/purelib/genna/libgenna.so
+
+    Setting `root_is_pure = False` below fixes the METADATA
+    (`Root-Is-Purelib: false`) but not the LAYOUT, because the layout is chosen
+    earlier by the install step. auditwheel checks the layout, and refused
+    every Linux wheel with
+
+        Invalid binary wheel, found the following shared library/libraries in
+        purelib folder: libgenna.so
+
+    while delocate and delvewheel, being laxer, accepted the same wheel on
+    macOS and Windows -- so only Linux was red. has_ext_modules() is the switch
+    that moves the install to platlib and puts the library at the wheel root.
+    """
+
+    def has_ext_modules(self):          # noqa: D102 - see class docstring
+        return True
+
+
+setup(cmdclass=CMDCLASS, distclass=_BinaryDistribution)
